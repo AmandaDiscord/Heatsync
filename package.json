@@ -1,0 +1,12 @@
+{
+  "name": "@amanda/reloader",
+  "version": "1.0.0",
+  "description": "A module to watch and reload JS Modules on modification and sync results with objects",
+  "main": "index.js",
+  "types": "./typings/index.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "PapiOphidian",
+  "license": "ISC"
+}
