@@ -1,8 +1,9 @@
 import events = require("events");
 
 declare class Reloader {
-	constructor(log?: boolean);
+	constructor(dirname: string, log?: boolean);
 
+	public dirname: string;
 	public watched: Map<string, any>;
 	public syncers: Array<{ filename: string; object: any }>;
 	public reloadEvent: events.EventEmitter;

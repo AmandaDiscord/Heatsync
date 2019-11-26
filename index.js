@@ -3,14 +3,19 @@ const fs = require("fs");
 const path = require("path");
 const pj = path.join;
 
-function localPath(dir) {
-	return pj(__dirname, "..", dir);
+function localPath(origin, dir) {
+	return pj(origin, dir);
 }
 
 const currentYear = new Date().getFullYear();
 
 module.exports = class Reloader {
-	constructor(log = false) {
+	/**
+	 * @param {string} dirname
+	 * @param {boolean} [log=false]
+	 */
+	constructor(dirname, log = false) {
+		this.dirname = dirname;
 		this.watched = new Map();
 		this.syncers = [];
 		this.reloadEvent = new (require("events").EventEmitter)();
@@ -21,7 +26,7 @@ module.exports = class Reloader {
 	 */
 	watch(filenames) {
 		for (let filename of filenames) {
-			filename = localPath(filename);
+			filename = localPath(this.dirname, filename);
 			if (!this.watched.has(filename)) {
 				if (this.log) console.log(`Watching ${filename}`);
 				this.watched.set(filename,
@@ -40,7 +45,7 @@ module.exports = class Reloader {
 	watchAndLoad(filenames) {
 		this.watch(filenames);
 		for (const filename of filenames) {
-			this._update(localPath(filename));
+			this._update(localPath(this.dirname, filename));
 		}
 		return this;
 	}
@@ -49,7 +54,7 @@ module.exports = class Reloader {
 	 * @param {Object} object
 	 */
 	sync(filename, object) {
-		filename = localPath(filename);
+		filename = localPath(this.dirname, filename);
 		if (!this.watched.has(filename)) console.error(`A file asked to keep an object in sync with ${filename}, but that file is not being watched.`);
 
 		this.syncers.push({ filename, object });
