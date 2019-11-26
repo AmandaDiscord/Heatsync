@@ -1,6 +1,6 @@
 import events = require("events");
 
-class Reloader {
+declare class Reloader {
 	constructor(log?: boolean);
 
 	public watched: Map<string, any>;
