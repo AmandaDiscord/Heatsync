@@ -1,11 +1,11 @@
-#Reloader
+# Reloader
 A module to watch and reload JS Modules on modification and sync results with objects
 
 In applications which require high uptime and are constantly being worked on as the development process normally is, developers might find it necessary to reload modules and have their changes take effect immediately without a restart. Luckily, that's where Reloader comes in.
 
 Here's some example usage:
 
-##index.js
+## index.js
 ```js
 const Reloader = require("@amanda/reloader");
 const reloader = new Reloader(__dirname, true);
@@ -20,7 +20,7 @@ reloader.watch([
 ]);
 ```
 
-##modules/utilities.js
+## modules/utilities.js
 ```js
 const path = require("path");
 
@@ -41,7 +41,7 @@ module.exports = {
 }
 ```
 
-##scripts/test.js
+## scripts/test.js
 ```js
 const passthrough = require("../passthrough.js");
 const { reloader } = passthrough;
