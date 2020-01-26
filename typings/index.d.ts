@@ -1,7 +1,7 @@
 import events = require("events");
 
 declare class Reloader {
-	constructor(dirname: string, log?: boolean);
+	constructor(log?: boolean, dirname: string);
 
 	public dirname: string;
 	public watched: Map<string, any>;

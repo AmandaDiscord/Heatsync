@@ -11,11 +11,20 @@ const currentYear = new Date().getFullYear();
 
 module.exports = class Reloader {
 	/**
-	 * @param {string} dirname
 	 * @param {boolean} [log=false]
+	 * @param {string} [dirname]
 	 */
-	constructor(dirname, log = false) {
-		this.dirname = dirname;
+	constructor(log = false, dirname) {
+		let logging = false;
+		let directory = undefined;
+		if (typeof log == "string") {
+			directory = log;
+			if (typeof dirname == "boolean") logging = dirname
+		} else {
+			logging = log
+			directory = dirname
+		}
+		this.dirname = directory ? path.resolve(directory) : process.cwd();
 		this.watched = new Map();
 		this.syncers = [];
 		this.reloadEvent = new (require("events").EventEmitter)();

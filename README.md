@@ -3,12 +3,15 @@ A module to watch and reload JS Modules on modification and sync results with ob
 
 In applications which require high uptime and are constantly being worked on as the development process normally is, developers might find it necessary to reload modules and have their changes take effect immediately without a restart. Luckily, that's where Reloader comes in.
 
-Here's some example usage:
+## Note
+When including Reloader in your application, Reloader, by default, determines paths relative to the current working directory. This method could cause issues with process monitors such as pm2 or starting your application in a directory that is not your project root. To circumvent this, you can optionally, pass a dirname which can be relative or absolute which Reloader will then use. The easiest to pass it would be __dirname from the file you're constructing it in.
+
+# Examples
 
 ## index.js
 ```js
 const Reloader = require("@amanda/reloader");
-const reloader = new Reloader(__dirname, true);
+const reloader = new Reloader(true);
 
 // we obviously need to bounce around this instance of reloader to other files
 const passthrough = require("./passthrough.js"); // module.exports = {};
@@ -85,4 +88,4 @@ test.js is also being watched by the reloader so if a file wants results to sync
 
 
 There is also a one-shot method to watch and load files conveniently named watchAndLoad
-which also accepts an array of paths. The difference between Reloader.watch and Reloader.watchAndLoad is that Reloader.watch does not require files which means they are not in the process' require cache.
+which also accepts an array of paths. The difference between Reloader.watch and Reloader.watchAndLoad is that Reloader.watch does not require files which means they are not in the process' require cache. This allows files to require the watched files then ask to sync them. Which is helpful for utility files
