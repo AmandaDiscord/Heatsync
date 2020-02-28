@@ -4,7 +4,7 @@ A module to watch and reload JS Modules on modification and sync results with ob
 In applications which require high uptime and are constantly being worked on as the development process normally is, developers might find it necessary to reload modules and have their changes take effect immediately without a restart. Luckily, that's where Reloader comes in.
 
 ## Note
-When including Reloader in your application, Reloader, by default, determines paths relative to the current working directory. This method could cause issues with process monitors such as pm2 or starting your application in a directory that is not your project root. To circumvent this, you can optionally, pass a dirname which can be relative or absolute which Reloader will then use. The easiest to pass it would be __dirname from the file you're constructing it in.
+When including Reloader in your application, Reloader, by default, determines paths relative to the current working directory. This method could cause issues with process monitors such as pm2 or starting your application in a directory that is not your project root. To circumvent this, you can optionally, pass a dirname which can be relative or absolute which Reloader will then use. The easiest to pass it would be __dirname from the file you're constructing it in. Once Reloader determines a path, all of it's methods which accept relative paths accept paths relative to where the directory Reloader was instanciated with.
 
 # Examples
 
