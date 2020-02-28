@@ -51,7 +51,6 @@ const { reloader } = passthrough;
 
 let utils = require("../modules/utilities.js");
 
-// inputs for all reloader functions are relative paths from the dirname from where the reloader was instantiated
 reloader.sync("./modules/utilities", utils);
 
 module.exports = {
