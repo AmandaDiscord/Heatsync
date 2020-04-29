@@ -19,15 +19,35 @@ module.exports = class Reloader {
 	 * @param {string} [dirname]
 	 */
 	constructor(log = false, dirname) {
+		/**
+		 * The absolute path to the directory Reloader was instanciated with.
+		 */
 		this.dirname = dirname ? path.resolve(dirname) : process.cwd();
-		/** @type {Map<string, import("./typings/StatWatcher")>} */
+		/**
+		 * A Map keyed by absolute file paths which are being watched by Reloader.
+		 * @type {Map<string, import("./typings/StatWatcher")>}
+		 */
 		this.watched = new Map();
-		/** @type {Array<{filename: string, object: any}>} */
+		/**
+		 * An Array of Objects representing files being synced by the sync method with a property object representing said file's state.
+		 * @type {Array<{filename: string, object: any}>}
+		 */
 		this.syncers = [];
+		/**
+		 * An EventEmitter which emits reloaded filenames
+		 */
 		this.reloadEvent = new (require("events").EventEmitter)();
+		/**
+		 * A boolean determining if Reloader should log modified/loaded filenames.
+		 */
 		this.log = log;
 	}
 	/**
+	 * Watch an Array of paths to files but do not require them immediately.
+	 *
+	 * ​
+	 *
+	 * When using relative paths with this method, you must make them relative to path Reloader was instanciated with.
 	 * @param {Array<string>} filenames
 	 */
 	watch(filenames) {
@@ -47,6 +67,11 @@ module.exports = class Reloader {
 		return this;
 	}
 	/**
+	 * Watch an Array of paths to files and require them immediately.
+	 *
+	 * ​
+	 *
+	 * When using relative paths with this method, you must make them relative to the path Reloader was instanciated with.
 	 * @param {Array<string>} filenames
 	 */
 	watchAndLoad(filenames) {
@@ -58,6 +83,11 @@ module.exports = class Reloader {
 		return this;
 	}
 	/**
+	 * Sync results with a watched file to an Object.
+	 *
+	 * ​
+	 *
+	 * When using relative paths with this method, you must make them relative to the path Reloader was instanciated with.
 	 * @param {string} filename
 	 * @param {Object} object
 	 */
@@ -69,6 +99,11 @@ module.exports = class Reloader {
 		return this;
 	}
 	/**
+	 * Force a path to a file to reload.
+	 *
+	 * ​
+	 *
+	 * When using relative paths with this method, you must make them relative to the path Reloader was instanciated with.
 	 * @param {string} filename
 	 */
 	resync(filename) {
@@ -76,7 +111,7 @@ module.exports = class Reloader {
 		if (!this.watched.has(filename)) {
 			throw new Error(`Reloader: asked to force resync ${filename}, but that file is not being watched.\n(Could resync, but what's the point? Likely the wrong filename.)`);
 		}
-		console.log(`Force resync ${filename}`);
+		if (this.log) console.log(`Force resync ${filename}`);
 		this._update(filename);
 		return this;
 	}
