@@ -1,68 +1,16 @@
 # Reloader
-A module to watch and reload JS Modules on modification and sync results with objects
+Written by @cloudrac3r (A.K.A. Cadence), this is a module to watch and reload JS Modules on modification and sync results with objects
 
-In applications which require high uptime and are constantly being worked on as the development process normally is, developers might find it necessary to reload modules and have their changes take effect immediately without a restart. Luckily, that's where Reloader comes in.
+In applications which require high uptime and are constantly being worked on as the development process normally is, developers might find it necessary to reload modules and have their changes take effect immediately without restarting the application. Luckily, that's where Reloader comes in.
 
 ## Note
 When including Reloader in your application, Reloader, by default, determines paths relative to the current working directory. This method could cause issues with process monitors such as pm2 or starting your application in a directory that is not your project root. To circumvent this, you can optionally, pass a dirname which can be relative or absolute which Reloader will then use. The easiest to pass it would be __dirname from the file you're constructing it in. Once Reloader determines a path, all of it's methods which accept relative paths accept paths relative to where the directory Reloader was instanciated with.
 
 # Examples
+Code for an example can be found at example/
+Follow along for a better understanding
 
-## index.js
-```js
-const Reloader = require("@amanda/reloader");
-const reloader = new Reloader(true);
-
-// we obviously need to bounce around this instance of reloader to other files
-const passthrough = require("./passthrough.js"); // module.exports = {};
-Object.assign(passthrough, { reloader, reloadEvent: reloader.reloadEvent });
-
-reloader.watch([
-	"./modules/utilities.js",
-	"./scripts/test.js"
-]);
-```
-
-## modules/utilities.js
-```js
-const path = require("path");
-
-const passthrough = require("../passthrough.js");
-const { reloadEvent } = passthrough;
-
-reloadEvent.once(path.basename(__filename), () => {
-	console.log("utils reloaded.");
-});
-
-module.exports = {
-	/**
-	 * This function tells a user they are epic
-	 */
-	epic: function(name) {
-		console.log(`${name} is epic`);
-	}
-}
-```
-
-## scripts/test.js
-```js
-const passthrough = require("../passthrough.js");
-const { reloader } = passthrough;
-
-let utils = require("../modules/utilities.js");
-
-reloader.sync("./modules/utilities", utils);
-
-module.exports = {
-	usage: "<Name>",
-	description: "tell someone they are epic",
-	process(name) {
-		return utils.epic(name);
-	}
-}
-```
-
-So then we require scripts/test.js somewhere and call test.process("John Doe");
+First, we require scripts/test.js somewhere and call test.process("John Doe");
 It will output "John Doe is epic"
 
 But let's say you modify utils.epic to be
