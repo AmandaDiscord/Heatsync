@@ -2,11 +2,15 @@
   "name": "@amanda/reloader",
   "version": "1.0.0",
   "description": "A module to watch and reload JS Modules on modification and sync results with objects",
-  "main": "index.js",
-  "types": "./typings/index.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "compile": "tsc -p ."
   },
   "author": "cloudrac3r",
-  "license": "ISC"
+  "license": "MIT",
+  "dependencies": {
+    "@types/node": "14.14.2",
+    "backtracker": "github:PapiOphidian/BackTracker"
+  }
 }
