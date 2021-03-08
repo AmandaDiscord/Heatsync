@@ -1,0 +1,10 @@
+"use strict";
+const events_1 = require("events");
+const kOldStatus = Symbol("kOldStatus");
+const kUseBigint = Symbol("kUseBigint");
+const KFSStatWatcherStart = Symbol("KFSStatWatcherStart");
+const KFSStatWatcherRefCount = Symbol("KFSStatWatcherRefCount");
+const KFSStatWatcherMaxRefCount = Symbol("KFSStatWatcherMaxRefCount");
+const kFSStatWatcherAddOrCleanRef = Symbol("kFSStatWatcherAddOrCleanRef");
+const owner_symbol = Symbol("owner_symbol");
+module.exports = StatWatcher;

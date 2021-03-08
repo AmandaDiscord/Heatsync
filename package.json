@@ -10,7 +10,9 @@
   "author": "cloudrac3r",
   "license": "MIT",
   "dependencies": {
-    "@types/node": "14.14.2",
     "backtracker": "github:PapiOphidian/BackTracker"
+  },
+  "devDependencies": {
+    "@types/node": "14.14.32"
   }
 }
