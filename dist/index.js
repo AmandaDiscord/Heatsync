@@ -26,7 +26,7 @@ class Reloader {
     }
     require(id, _from) {
         let from;
-        if (typeof id === "string" && !id.startsWith(".")) {
+        if (typeof id === "string" && !id.startsWith(".") && (!path_1.default.isAbsolute(id) || id.includes("node_modules"))) {
             from = require.resolve(id);
             this._npmMods.push(from);
         }
@@ -39,8 +39,10 @@ class Reloader {
             throw new Error(selfReloadError);
         const req = require(directory);
         let value;
-        if (typeof req !== "object" || Array.isArray(req))
-            value = { [placeHolderKey]: req };
+        if (typeof req !== "object" || Array.isArray(req)) {
+            value = {};
+            Object.defineProperty(value, placeHolderKey, { value: req });
+        }
         else
             value = req;
         if (this._npmMods.includes(directory)) {

@@ -49,7 +49,7 @@ class Reloader {
 	public require(id: string, _from: string): any;
 	public require(id: string | Array<string>, _from?: string): any {
 		let from: string;
-		if (typeof id === "string" && !id.startsWith(".")) {
+		if (typeof id === "string" && !id.startsWith(".") && (!path.isAbsolute(id) || id.includes("node_modules"))) {
 			from = require.resolve(id);
 			this._npmMods.push(from);
 		} else from = _from ? _from : BackTracker.stack.first.dir;
@@ -58,8 +58,10 @@ class Reloader {
 		if (directory === __filename) throw new Error(selfReloadError);
 		const req = require(directory);
 		let value: any;
-		if (typeof req !== "object" || Array.isArray(req)) value = { [placeHolderKey]: req };
-		else value = req;
+		if (typeof req !== "object" || Array.isArray(req)) {
+			value = {};
+			Object.defineProperty(value, placeHolderKey, { value: req })
+		} else value = req;
 
 		// after requiring the npm module, all of it's children *should* be required unless they're supposed to be loaded asynchronously
 		// We should watch for children changes, then resync the entry point the user required.

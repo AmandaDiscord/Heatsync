@@ -170,7 +170,7 @@
         "signature": "3d9d3f7ca8c6b4faff6e33612d8aedbd64b7a1c3d329397021648900e3ac3d43"
       },
       "../src/index.ts": {
-        "version": "6199c34e968af51ada30cc9f633b7bdc786281fce2dbeb4c62035119dda76521",
+        "version": "8a39b308651a31e1e9e7374085c736b1103798edf639d85490c35751b8483ec3",
         "signature": "3ec16f3fe47eed573d2570e1db2932acaa6de5679529cc1222874a7e950c4388"
       },
       "../node_modules/@types/node/globals.d.ts": {
@@ -586,6 +586,10 @@
       ]
     },
     "exportedModulesMap": {
+      "../src/hiddentypes.ts": [
+        "../node_modules/@types/node/fs.d.ts",
+        "../node_modules/@types/node/events.d.ts"
+      ],
       "../node_modules/backtracker/dist/lib/stack.d.ts": [
         "../node_modules/backtracker/dist/lib/caller.d.ts"
       ],
@@ -767,10 +771,6 @@
       ],
       "../node_modules/@types/node/index.d.ts": [
         "../node_modules/@types/node/base.d.ts"
-      ],
-      "../src/hiddentypes.ts": [
-        "../node_modules/@types/node/fs.d.ts",
-        "../node_modules/@types/node/events.d.ts"
       ]
     },
     "semanticDiagnosticsPerFile": [
@@ -811,6 +811,7 @@
       "../../../../appdata/roaming/npm/node_modules/typescript/lib/lib.es2020.symbol.wellknown.d.ts",
       "../../../../appdata/roaming/npm/node_modules/typescript/lib/lib.esnext.intl.d.ts",
       "../../../../appdata/roaming/npm/node_modules/typescript/lib/lib.esnext.bigint.d.ts",
+      "../src/hiddentypes.ts",
       "../node_modules/backtracker/dist/lib/caller.d.ts",
       "../node_modules/backtracker/dist/lib/stack.d.ts",
       "../node_modules/backtracker/dist/lib/backtracker.d.ts",
@@ -862,7 +863,6 @@
       "../node_modules/@types/node/assert.d.ts",
       "../node_modules/@types/node/base.d.ts",
       "../node_modules/@types/node/index.d.ts",
-      "../src/hiddentypes.ts",
       "../src/index.ts"
     ]
   },
