@@ -166,8 +166,8 @@
         "signature": "20820cfccaa1eecab5bd5e5ee8583b430cb30eb458382b185de8930f37121b0b"
       },
       "../src/index.ts": {
-        "version": "b87ec6b148e17a0aebacf4fb9f5b022fb1996da4b223eaac834a181a5b175204",
-        "signature": "b4d1c77bc72b5e94c3ea8755951416581035d10335f681a8dd54d24c0b57fbd9"
+        "version": "a602cc8d073d146b549ab2555236b8f9fc85baa51f7b07f8d0194d6bbcbc96da",
+        "signature": "3552cf51dad138658d04e6ecc080c805be736472cd4a761c8d369d7836a01c12"
       },
       "../node_modules/@types/node/assert/strict.d.ts": {
         "version": "c7bdc99177a2a94d25fb13722adaaf5b3291bf70b4d1b27584ba189dd3889ba3",
@@ -875,7 +875,6 @@
       "../node_modules/backtracker/dist/caller.d.ts",
       "../node_modules/backtracker/dist/stack.d.ts",
       "../node_modules/backtracker/dist/index.d.ts",
-      "../src/index.ts",
       "../node_modules/@types/node/assert/strict.d.ts",
       "../node_modules/@types/node/globals.d.ts",
       "../node_modules/@types/node/async_hooks.d.ts",
@@ -927,7 +926,8 @@
       "../node_modules/@types/node/ts3.6/base.d.ts",
       "../node_modules/@types/node/assert.d.ts",
       "../node_modules/@types/node/base.d.ts",
-      "../node_modules/@types/node/index.d.ts"
+      "../node_modules/@types/node/index.d.ts",
+      "../src/index.ts"
     ]
   },
   "version": "3.7.4"

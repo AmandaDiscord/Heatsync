@@ -117,11 +117,11 @@ class Sync {
 		else return ref[placeHolderKey] ? ref[placeHolderKey] : ref
 	}
 
-	public addTemporaryListener(target: EventEmitter, event: string, callback: (...args: Array<any>) => any, method: "on" | "once" = "on") {
+	public addTemporaryListener<Target extends EventEmitter>(target: Target, event: Parameters<Target["on"]>[0], callback: (...args: Array<any>) => any, method: "on" | "once" = "on") {
 		const first = BackTracker.stack.first;
 		const absolute = path.normalize(`${first.dir}/${first.filename}`);
 		if (!this._listeners.get(absolute)) this._listeners.set(absolute, []);
-		this._listeners.get(absolute)!.push([target, event, callback]);
+		this._listeners.get(absolute)!.push([target, event as string, callback]);
 		return target[method](event, callback);
 	}
 

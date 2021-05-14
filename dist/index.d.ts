@@ -30,7 +30,7 @@ declare class Sync {
     require(id: string): any;
     require(id: Array<string>): any;
     require(id: string, _from: string): any;
-    addTemporaryListener(target: EventEmitter, event: string, callback: (...args: Array<any>) => any, method?: "on" | "once"): EventEmitter;
+    addTemporaryListener<Target extends EventEmitter>(target: Target, event: Parameters<Target["on"]>[0], callback: (...args: Array<any>) => any, method?: "on" | "once"): Target;
     resync(id: string): any;
     resync(id: Array<string>): any;
     resync(id: string, _from?: string): any;
