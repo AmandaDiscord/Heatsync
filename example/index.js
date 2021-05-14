@@ -1,11 +1,11 @@
-const Reloader = require("../index.js");
-const reloader = new Reloader(true, __dirname);
+const Heatsync = require("../dist/index.js");
+const sync = new Heatsync();
 
-// we obviously need to bounce around this instance of reloader to other files
+// we obviously need to bounce around this instance of sync to other files
 const passthrough = require("./passthrough.js");
-Object.assign(passthrough, { reloader, reloadEvent: reloader.reloadEvent });
+Object.assign(passthrough, { sync: sync });
 
-reloader.watch([
+sync.require([
 	"./modules/utilities.js",
 	"./scripts/test.js"
 ]);

@@ -1,9 +1,10 @@
 const passthrough = require("../passthrough.js");
-const { reloader } = passthrough;
+const { sync } = passthrough;
 
-let utils = require("../modules/utilities.js");
-
-reloader.sync("./modules/utilities", utils);
+/**
+ * @type {import("../modules/utilities")}
+ */
+const utils = sync.require("../modules/utilities");
 
 module.exports = {
 	usage: "<Name>",

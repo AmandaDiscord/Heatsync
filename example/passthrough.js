@@ -1,7 +1,6 @@
 /**
  * @typedef {Object} Passthrough
- * @property {import("../index.js")} reloader
- * @property {import("events").EventEmitter} reloadEvent
+ * @property {import("../dist/index.js")} sync
  */
 /** @type {Passthrough} */
 // @ts-ignore
