@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import { EventEmitter } from "events";
-declare class Reloader {
+declare class Sync {
     events: EventEmitter;
     private _listeners;
     private _references;
@@ -16,4 +16,4 @@ declare class Reloader {
     resync(id: string, _from?: string): any;
     resync(id: string, _from?: string, _child?: boolean): any;
 }
-export = Reloader;
+export = Sync;

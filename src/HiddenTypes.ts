@@ -25,6 +25,22 @@ interface WatcherEvents {
 	change: [import("fs").Stats, import("fs").Stats];
 }
 
+interface StatWatcher {
+	addListener<E extends keyof WatcherEvents>(event: E, listener: (...args: WatcherEvents[E]) => any): this;
+	emit<E extends keyof WatcherEvents>(event: E, ...args: WatcherEvents[E]): boolean;
+	eventNames(): Array<keyof WatcherEvents>;
+	listenerCount(event: keyof WatcherEvents): number;
+	listeners(event: keyof WatcherEvents): Array<(...args: Array<any>) => any>;
+	off<E extends keyof WatcherEvents>(event: E, listener: (...args: WatcherEvents[E]) => any): this;
+	on<E extends keyof WatcherEvents>(event: E, listener: (...args: WatcherEvents[E]) => any): this;
+	once<E extends keyof WatcherEvents>(event: E, listener: (...args: WatcherEvents[E]) => any): this;
+	prependListener<E extends keyof WatcherEvents>(event: E, listener: (...args: WatcherEvents[E]) => any): this;
+	prependOnceListener<E extends keyof WatcherEvents>(event: E, listener: (...args: WatcherEvents[E]) => any): this;
+	rawListeners(event: keyof WatcherEvents): Array<(...args: Array<any>) => any>;
+	removeAllListeners(event?: keyof WatcherEvents): this;
+	removeListener<E extends keyof WatcherEvents>(event: E, listener: (...args: WatcherEvents[E]) => any): this;
+}
+
 declare class StatWatcher extends EventEmitter {
 	public _handle: StatWatcher | null;
 	public [kOldStatus]: -1;
@@ -43,23 +59,6 @@ declare class StatWatcher extends EventEmitter {
 	public stop(): void;
 	public ref(): this;
 	public unref(): this;
-
-	// EventEmitter method typing overrides.
-
-	public on<E extends keyof WatcherEvents>(event: E, listener: (...args: WatcherEvents[E]) => void): this;
-	public once<E extends keyof WatcherEvents>(event: E, listener: (...args: WatcherEvents[E]) => void): this;
-	public off<E extends keyof WatcherEvents>(event: E, listener: (...args: WatcherEvents[E]) => void): this;
-	public emit<E extends keyof WatcherEvents>(event: E, ...args: WatcherEvents[E]): boolean;
-
-	public addListener<E extends keyof WatcherEvents>(event: E, listener: (...args: WatcherEvents[E]) => void): this;
-	public eventNames(): Array<keyof WatcherEvents>;
-	public listenerCount(event: keyof WatcherEvents): number;
-	public listeners(event: keyof WatcherEvents): Array<Function>;
-	public prependListener<E extends keyof WatcherEvents>(event: E, listener: (...args: WatcherEvents[E]) => void): this;
-	public prependOnceListener<E extends keyof WatcherEvents>(event: E, listener: (...args: WatcherEvents[E]) => void): this;
-	public rawListeners(event: keyof WatcherEvents): Array<Function>;
-	public removeAllListeners(event?: keyof WatcherEvents): this;
-	public removeListener<E extends keyof WatcherEvents>(event: E, listener: (...args: WatcherEvents[E]) => void): this;
 }
 
 export = StatWatcher;

@@ -5,10 +5,10 @@ import { BackTracker } from "backtracker";
 
 const currentYear = new Date().getFullYear();
 
-const placeHolderKey = "__reloader_default__";
-const selfReloadError = "Do not attempt to re-require Reloader. If you REALLY want to, do it yourself with require.cache and deal with possibly ticking timers and event listeners, but don't complain if something breaks :(";
+const placeHolderKey = "__heatsync_default__";
+const selfReloadError = "Do not attempt to re-require Heatsync. If you REALLY want to, do it yourself with require.cache and deal with possibly ticking timers and event listeners, but don't complain if something breaks :(";
 
-class Reloader {
+class Sync {
 	/**
 	 * An EventEmitter which emits absolute reloaded file paths.
 	 */
@@ -22,10 +22,12 @@ class Reloader {
 	 */
 	private _references: Map<string, any> = new Map();
 	/**
-	 * A Map keyed by absolute file paths which are being watched by reloader.
+	 * A Map keyed by absolute file paths which are being watched by heatsync.
 	 */
-	private _watchers: Map<string, import("./HiddenTypes")>;
-
+	private _watchers: Map<string, import("./HiddenTypes")> = new Map();
+	/**
+	 * An Array of npm module names being watched by heatsync
+	 */
 	private _npmMods: Array<string> = [];
 
 	public constructor() {
@@ -151,4 +153,4 @@ class Reloader {
 	}
 }
 
-export = Reloader;
+export = Sync;

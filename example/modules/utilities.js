@@ -1,9 +1,7 @@
-const path = require("path");
-
 const passthrough = require("../passthrough.js");
-const { reloadEvent } = passthrough;
+const { sync } = passthrough;
 
-reloadEvent.once(path.basename(__filename), () => {
+sync.addTemporaryListener(sync.events, __filename, () => {
 	console.log("utils reloaded.");
 });
 

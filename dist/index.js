@@ -7,13 +7,14 @@ const path_1 = __importDefault(require("path"));
 const events_1 = require("events");
 const backtracker_1 = require("backtracker");
 const currentYear = new Date().getFullYear();
-const placeHolderKey = "__reloader_default__";
-const selfReloadError = "Do not attempt to re-require Reloader. If you REALLY want to, do it yourself with require.cache and deal with possibly ticking timers and event listeners, but don't complain if something breaks :(";
-class Reloader {
+const placeHolderKey = "__heatsync_default__";
+const selfReloadError = "Do not attempt to re-require Heatsync. If you REALLY want to, do it yourself with require.cache and deal with possibly ticking timers and event listeners, but don't complain if something breaks :(";
+class Sync {
     constructor() {
         this.events = new events_1.EventEmitter();
         this._listeners = new Map();
         this._references = new Map();
+        this._watchers = new Map();
         this._npmMods = [];
         this.events.on("any", (filename) => {
             const listeners = this._listeners.get(filename);
@@ -129,4 +130,4 @@ class Reloader {
             return void 0;
     }
 }
-module.exports = Reloader;
+module.exports = Sync;
