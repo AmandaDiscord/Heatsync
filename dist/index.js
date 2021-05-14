@@ -11,10 +11,25 @@ const placeHolderKey = "__heatsync_default__";
 const selfReloadError = "Do not attempt to re-require Heatsync. If you REALLY want to, do it yourself with require.cache and deal with possibly ticking timers and event listeners, but don't complain if something breaks :(";
 class Sync {
     constructor() {
+        /**
+         * An EventEmitter which emits absolute reloaded file paths.
+         */
         this.events = new events_1.EventEmitter();
+        /**
+         * A Map keyed by absolute file paths which details listeners added to a target.
+         */
         this._listeners = new Map();
+        /**
+         * A Map keyed by absolute file paths which holds references to imports.
+         */
         this._references = new Map();
+        /**
+         * A Map keyed by absolute file paths which are being watched by heatsync.
+         */
         this._watchers = new Map();
+        /**
+         * An Array of npm module names being watched by heatsync
+         */
         this._npmMods = [];
         this.events.on("any", (filename) => {
             const listeners = this._listeners.get(filename);
@@ -46,8 +61,11 @@ class Sync {
         }
         else
             value = req;
+        // after requiring the npm module, all of it's children *should* be required unless they're supposed to be loaded asynchronously
+        // We should watch for children changes, then resync the entry point the user required.
         if (this._npmMods.includes(directory)) {
             watch(directory);
+            // Hold reference for this._watchers to use in fn.
             const instance = this;
             function watch(d) {
                 const m = require.cache[d];
@@ -55,6 +73,7 @@ class Sync {
                     return;
                 for (const child of m.children) {
                     watch(child.filename);
+                    // main module will get watched by main require.
                     instance._watchers.set(child.filename, fs_1.default.watchFile(child.filename, { interval: currentYear }, () => {
                         instance.resync(directory);
                         fs_1.default.unwatchFile(child.filename);
@@ -119,6 +138,8 @@ class Sync {
             throw new Error(selfReloadError);
         const mod = require.cache[directory];
         if (mod) {
+            // Drop all of the children (don't take that out of context) and re-require the parent.
+            // The parent will re-require all of the children it depends on and rebuild require.cache.
             for (const child of mod.children) {
                 this.resync(child.filename, undefined, true);
             }
