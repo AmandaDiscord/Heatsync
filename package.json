@@ -7,6 +7,7 @@
   "scripts": {
     "compile": "tsc -p ."
   },
+  "repository": "git://github.com/AmandaDiscord/Heatsync.git",
   "author": "cloudrac3r",
   "license": "MIT",
   "dependencies": {
