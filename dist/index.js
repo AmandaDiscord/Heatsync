@@ -47,7 +47,7 @@ class Sync {
             this._npmMods.push(from);
         }
         else
-            from = _from ? _from : backtracker_1.BackTracker.stack.first.dir;
+            from = _from ? _from : backtracker_1.BackTracker.stack.first().dir;
         if (Array.isArray(id))
             return id.map(item => this.require(item, from));
         const directory = !path_1.default.isAbsolute(id) ? require.resolve(path_1.default.join(from, id)) : require.resolve(id);
@@ -118,7 +118,7 @@ class Sync {
             return ref[placeHolderKey] ? ref[placeHolderKey] : ref;
     }
     addTemporaryListener(target, event, callback, method = "on") {
-        const first = backtracker_1.BackTracker.stack.first;
+        const first = backtracker_1.BackTracker.stack.first();
         const absolute = path_1.default.normalize(`${first.dir}/${first.filename}`);
         if (!this._listeners.get(absolute))
             this._listeners.set(absolute, []);
@@ -130,7 +130,7 @@ class Sync {
         if (typeof id === "string" && !id.startsWith("."))
             from = require.resolve(id);
         else
-            from = _from ? _from : backtracker_1.BackTracker.stack.first.dir;
+            from = _from ? _from : backtracker_1.BackTracker.stack.first().dir;
         if (Array.isArray(id))
             return id.map(item => this.resync(item, from));
         const directory = !path_1.default.isAbsolute(id) ? require.resolve(path_1.default.join(from, id)) : require.resolve(id);

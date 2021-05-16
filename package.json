@@ -1,6 +1,6 @@
 {
   "name": "heatsync",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "A module to watch and reload CommonJS Modules on modification and sync results with objects",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -11,7 +11,7 @@
   "author": "cloudrac3r",
   "license": "MIT",
   "dependencies": {
-    "backtracker": "^3.0.1"
+    "backtracker": "^3.1.0"
   },
   "devDependencies": {
     "@types/node": "15.3.0"

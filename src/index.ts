@@ -54,7 +54,7 @@ class Sync {
 		if (typeof id === "string" && !id.startsWith(".") && (!path.isAbsolute(id) || id.includes("node_modules"))) {
 			from = require.resolve(id);
 			this._npmMods.push(from);
-		} else from = _from ? _from : BackTracker.stack.first.dir;
+		} else from = _from ? _from : (BackTracker.stack.first() as import("backtracker/dist/Caller")).dir;
 		if (Array.isArray(id)) return id.map(item => this.require(item, from));
 		const directory = !path.isAbsolute(id) ? require.resolve(path.join(from, id)) : require.resolve(id);
 		if (directory === __filename) throw new Error(selfReloadError);
@@ -118,7 +118,7 @@ class Sync {
 	}
 
 	public addTemporaryListener<Target extends EventEmitter>(target: Target, event: Parameters<Target["on"]>[0], callback: (...args: Array<any>) => any, method: "on" | "once" = "on") {
-		const first = BackTracker.stack.first;
+		const first = BackTracker.stack.first() as import("backtracker/dist/Caller");
 		const absolute = path.normalize(`${first.dir}/${first.filename}`);
 		if (!this._listeners.get(absolute)) this._listeners.set(absolute, []);
 		this._listeners.get(absolute)!.push([target, event as string, callback]);
@@ -132,7 +132,7 @@ class Sync {
 	public resync(id: string | Array<string>, _from?: string, _child?: boolean): any {
 		let from: string;
 		if (typeof id === "string" && !id.startsWith(".")) from = require.resolve(id);
-		else from = _from ? _from : BackTracker.stack.first.dir;
+		else from = _from ? _from : (BackTracker.stack.first() as import("backtracker/dist/Caller")).dir;
 		if (Array.isArray(id)) return id.map(item => this.resync(item, from));
 		const directory = !path.isAbsolute(id) ? require.resolve(path.join(from, id)) : require.resolve(id);
 		if (directory === __filename) throw new Error(selfReloadError);

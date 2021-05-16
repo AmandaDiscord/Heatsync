@@ -158,15 +158,15 @@
         "signature": "5f99670889613f0a8f9047425123e34108213b7270f98e7d35a9ed182eb9d682"
       },
       "../node_modules/backtracker/dist/stack.d.ts": {
-        "version": "ad113627a58ba7c2a9f78e643ad7e5cbaf6f10ec64a9a40c8f301737e6e8887d",
-        "signature": "ad113627a58ba7c2a9f78e643ad7e5cbaf6f10ec64a9a40c8f301737e6e8887d"
+        "version": "b34874fe12e9e952849607e33e5bd7e2e06337328597cea6e893c1b62d30ece6",
+        "signature": "b34874fe12e9e952849607e33e5bd7e2e06337328597cea6e893c1b62d30ece6"
       },
       "../node_modules/backtracker/dist/index.d.ts": {
         "version": "20820cfccaa1eecab5bd5e5ee8583b430cb30eb458382b185de8930f37121b0b",
         "signature": "20820cfccaa1eecab5bd5e5ee8583b430cb30eb458382b185de8930f37121b0b"
       },
       "../src/index.ts": {
-        "version": "a602cc8d073d146b549ab2555236b8f9fc85baa51f7b07f8d0194d6bbcbc96da",
+        "version": "e50d13f26fad622a38ade4c5618aff036cd145afd8f6abec4462a2d6bf5ca803",
         "signature": "3552cf51dad138658d04e6ecc080c805be736472cd4a761c8d369d7836a01c12"
       },
       "../node_modules/@types/node/assert/strict.d.ts": {
@@ -426,7 +426,8 @@
         "../node_modules/@types/node/path.d.ts",
         "../node_modules/@types/node/events.d.ts",
         "../node_modules/backtracker/dist/index.d.ts",
-        "../src/hiddentypes.ts"
+        "../src/hiddentypes.ts",
+        "../node_modules/backtracker/dist/caller.d.ts"
       ],
       "../node_modules/@types/node/assert/strict.d.ts": [
         "../node_modules/@types/node/assert.d.ts"
@@ -873,8 +874,6 @@
       "../../../../appdata/roaming/npm/node_modules/typescript/lib/lib.esnext.bigint.d.ts",
       "../src/hiddentypes.ts",
       "../node_modules/backtracker/dist/caller.d.ts",
-      "../node_modules/backtracker/dist/stack.d.ts",
-      "../node_modules/backtracker/dist/index.d.ts",
       "../node_modules/@types/node/assert/strict.d.ts",
       "../node_modules/@types/node/globals.d.ts",
       "../node_modules/@types/node/async_hooks.d.ts",
@@ -927,6 +926,8 @@
       "../node_modules/@types/node/assert.d.ts",
       "../node_modules/@types/node/base.d.ts",
       "../node_modules/@types/node/index.d.ts",
+      "../node_modules/backtracker/dist/stack.d.ts",
+      "../node_modules/backtracker/dist/index.d.ts",
       "../src/index.ts"
     ]
   },
