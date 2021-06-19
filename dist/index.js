@@ -91,7 +91,8 @@ class Sync {
         if (!this._listeners.get(absolute))
             this._listeners.set(absolute, []);
         this._listeners.get(absolute).push([target, event, callback]);
-        return target[method](event, callback);
+        setImmediate(() => target[method](event, callback));
+        return target;
     }
     resync(id, _from) {
         let from;

@@ -92,7 +92,8 @@ class Sync {
 		const absolute = path.normalize(`${first.dir}/${first.filename}`);
 		if (!this._listeners.get(absolute)) this._listeners.set(absolute, []);
 		this._listeners.get(absolute)!.push([target, event as string, callback]);
-		return target[method](event, callback);
+		setImmediate(() => target[method](event, callback))
+		return target
 	}
 
 	public resync(id: string): any;

@@ -166,7 +166,7 @@
         "signature": "20820cfccaa1eecab5bd5e5ee8583b430cb30eb458382b185de8930f37121b0b"
       },
       "../src/index.ts": {
-        "version": "e1b86e612c72976b0dfb634ffd4e608593e55695b796fc204d12779591717122",
+        "version": "00452aa85e80b0656ce0b3eb0b07ef34142a9cd116c12727d7fd3a46d310dd9e",
         "signature": "09a7479c20f05bdba3b371365f38a749045cf450b286c0f5b23fdf5f14892795"
       },
       "../node_modules/@types/node/assert/strict.d.ts": {
