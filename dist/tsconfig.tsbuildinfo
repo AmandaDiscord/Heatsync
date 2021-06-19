@@ -166,8 +166,8 @@
         "signature": "20820cfccaa1eecab5bd5e5ee8583b430cb30eb458382b185de8930f37121b0b"
       },
       "../src/index.ts": {
-        "version": "e50d13f26fad622a38ade4c5618aff036cd145afd8f6abec4462a2d6bf5ca803",
-        "signature": "3552cf51dad138658d04e6ecc080c805be736472cd4a761c8d369d7836a01c12"
+        "version": "e1b86e612c72976b0dfb634ffd4e608593e55695b796fc204d12779591717122",
+        "signature": "09a7479c20f05bdba3b371365f38a749045cf450b286c0f5b23fdf5f14892795"
       },
       "../node_modules/@types/node/assert/strict.d.ts": {
         "version": "c7bdc99177a2a94d25fb13722adaaf5b3291bf70b4d1b27584ba189dd3889ba3",
@@ -874,6 +874,8 @@
       "../../../../appdata/roaming/npm/node_modules/typescript/lib/lib.esnext.bigint.d.ts",
       "../src/hiddentypes.ts",
       "../node_modules/backtracker/dist/caller.d.ts",
+      "../node_modules/backtracker/dist/stack.d.ts",
+      "../node_modules/backtracker/dist/index.d.ts",
       "../node_modules/@types/node/assert/strict.d.ts",
       "../node_modules/@types/node/globals.d.ts",
       "../node_modules/@types/node/async_hooks.d.ts",
@@ -926,8 +928,6 @@
       "../node_modules/@types/node/assert.d.ts",
       "../node_modules/@types/node/base.d.ts",
       "../node_modules/@types/node/index.d.ts",
-      "../node_modules/backtracker/dist/stack.d.ts",
-      "../node_modules/backtracker/dist/index.d.ts",
       "../src/index.ts"
     ]
   },

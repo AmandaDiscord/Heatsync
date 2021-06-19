@@ -17,10 +17,6 @@ declare class Sync {
      * A Map keyed by absolute file paths which are being watched by heatsync.
      */
     private _watchers;
-    /**
-     * An Array of npm module names being watched by heatsync
-     */
-    private _npmMods;
     constructor();
     /**
      * The return value is any, because TypeScript doesn't like dynamically typed return values for import.
@@ -34,6 +30,6 @@ declare class Sync {
     resync(id: string): any;
     resync(id: Array<string>): any;
     resync(id: string, _from?: string): any;
-    resync(id: string, _from?: string, _child?: boolean): any;
+    resync(id: string, _from?: string): any;
 }
 export = Sync;

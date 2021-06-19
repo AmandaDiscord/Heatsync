@@ -25,10 +25,6 @@ class Sync {
 	 * A Map keyed by absolute file paths which are being watched by heatsync.
 	 */
 	private _watchers: Map<string, import("./HiddenTypes")> = new Map();
-	/**
-	 * An Array of npm module names being watched by heatsync
-	 */
-	private _npmMods: Array<string> = [];
 
 	public constructor() {
 		this.events.on("any", (filename: string) => {
@@ -51,10 +47,7 @@ class Sync {
 	public require(id: string, _from: string): any;
 	public require(id: string | Array<string>, _from?: string): any {
 		let from: string;
-		if (typeof id === "string" && !id.startsWith(".") && (!path.isAbsolute(id) || id.includes("node_modules"))) {
-			from = require.resolve(id);
-			this._npmMods.push(from);
-		} else from = _from ? _from : (BackTracker.stack.first() as import("backtracker/dist/Caller")).dir;
+		from = _from ? _from : (BackTracker.stack.first() as import("backtracker/dist/Caller")).dir;
 		if (Array.isArray(id)) return id.map(item => this.require(item, from));
 		const directory = !path.isAbsolute(id) ? require.resolve(path.join(from, id)) : require.resolve(id);
 		if (directory === __filename) throw new Error(selfReloadError);
@@ -65,33 +58,10 @@ class Sync {
 			Object.defineProperty(value, placeHolderKey, { value: req })
 		} else value = req;
 
-		// after requiring the npm module, all of it's children *should* be required unless they're supposed to be loaded asynchronously
-		// We should watch for children changes, then resync the entry point the user required.
-		if (this._npmMods.includes(directory)) {
-			watch(directory);
-			// Hold reference for this._watchers to use in fn.
-			const instance = this;
-
-			function watch(d: string) {
-				const m = require.cache[d];
-				if (!m) return;
-				for (const child of m.children) {
-					watch(child.filename);
-					// main module will get watched by main require.
-					instance._watchers.set(child.filename, fs.watchFile(child.filename, { interval: currentYear }, () => {
-						instance.resync(directory);
-						fs.unwatchFile(child.filename);
-						instance._watchers.delete(child.filename);
-					}) as unknown as import("./HiddenTypes"));
-				}
-			}
-		}
-
 		const oldObject = this._references.get(directory);
 		if (!oldObject) {
 			this._references.set(directory, value);
 			this._watchers.set(directory, fs.watchFile(directory, { interval: currentYear }, () => {
-				if (this._npmMods.includes(directory)) return this.resync(directory);
 				delete require.cache[directory];
 				try {
 					this.require(directory);
@@ -128,28 +98,16 @@ class Sync {
 	public resync(id: string): any;
 	public resync(id: Array<string>): any;
 	public resync(id: string, _from?: string): any;
-	public resync(id: string, _from?: string, _child?: boolean): any;
-	public resync(id: string | Array<string>, _from?: string, _child?: boolean): any {
+	public resync(id: string, _from?: string): any;
+	public resync(id: string | Array<string>, _from?: string): any {
 		let from: string;
 		if (typeof id === "string" && !id.startsWith(".")) from = require.resolve(id);
 		else from = _from ? _from : (BackTracker.stack.first() as import("backtracker/dist/Caller")).dir;
 		if (Array.isArray(id)) return id.map(item => this.resync(item, from));
 		const directory = !path.isAbsolute(id) ? require.resolve(path.join(from, id)) : require.resolve(id);
 		if (directory === __filename) throw new Error(selfReloadError);
-
-		const mod = require.cache[directory];
-		if (mod) {
-			// Drop all of the children (don't take that out of context) and re-require the parent.
-			// The parent will re-require all of the children it depends on and rebuild require.cache.
-			for (const child of mod.children) {
-				this.resync(child.filename, undefined, true);
-			}
-		}
-
 		delete require.cache[directory];
-
-		if (!_child) return this.require(directory);
-		else return void 0;
+		return this.require(directory);
 	}
 }
 

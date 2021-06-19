@@ -14,7 +14,7 @@ const sync = new Heatsync();
 const utils = sync.require("./utils.js");
 
 // The require method also accepts an Array of IDs where IDs can be:
-// A relative path, an absolute path or a node_module name.
+// A relative path or an absolute path.
 const [file1, file2, file3] = sync.require([
 	"./epic.js",
 	"./poggers.js",
@@ -25,8 +25,6 @@ const [file1, file2, file3] = sync.require([
 # How it works
 Object.assign and the delete keyword mutates the state of an Object. which means it doesn't replace the reference. You can assign values to an Object through Object.assign and the new/updated properties will appear in other files so long as you have the same reference.
 
-# Gachas
-You must be very careful with Sync.resync as it iterates over modules and their children recursively and drops the cache for them. If another module references a child mod that gets dropped and it's not being synced by heatsync, then multiple instances of the mod which may be outdated would still be held within memory and possibly wouldn't get swept. With this in mind, practice efficient memory management and if you must use resync, then make sure references would not hold stale copies of a mod.
 
 # Examples
 Code for an example can be found at example/

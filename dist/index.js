@@ -27,10 +27,6 @@ class Sync {
          * A Map keyed by absolute file paths which are being watched by heatsync.
          */
         this._watchers = new Map();
-        /**
-         * An Array of npm module names being watched by heatsync
-         */
-        this._npmMods = [];
         this.events.on("any", (filename) => {
             const listeners = this._listeners.get(filename);
             if (!listeners)
@@ -42,12 +38,7 @@ class Sync {
     }
     require(id, _from) {
         let from;
-        if (typeof id === "string" && !id.startsWith(".") && (!path_1.default.isAbsolute(id) || id.includes("node_modules"))) {
-            from = require.resolve(id);
-            this._npmMods.push(from);
-        }
-        else
-            from = _from ? _from : backtracker_1.BackTracker.stack.first().dir;
+        from = _from ? _from : backtracker_1.BackTracker.stack.first().dir;
         if (Array.isArray(id))
             return id.map(item => this.require(item, from));
         const directory = !path_1.default.isAbsolute(id) ? require.resolve(path_1.default.join(from, id)) : require.resolve(id);
@@ -61,33 +52,10 @@ class Sync {
         }
         else
             value = req;
-        // after requiring the npm module, all of it's children *should* be required unless they're supposed to be loaded asynchronously
-        // We should watch for children changes, then resync the entry point the user required.
-        if (this._npmMods.includes(directory)) {
-            watch(directory);
-            // Hold reference for this._watchers to use in fn.
-            const instance = this;
-            function watch(d) {
-                const m = require.cache[d];
-                if (!m)
-                    return;
-                for (const child of m.children) {
-                    watch(child.filename);
-                    // main module will get watched by main require.
-                    instance._watchers.set(child.filename, fs_1.default.watchFile(child.filename, { interval: currentYear }, () => {
-                        instance.resync(directory);
-                        fs_1.default.unwatchFile(child.filename);
-                        instance._watchers.delete(child.filename);
-                    }));
-                }
-            }
-        }
         const oldObject = this._references.get(directory);
         if (!oldObject) {
             this._references.set(directory, value);
             this._watchers.set(directory, fs_1.default.watchFile(directory, { interval: currentYear }, () => {
-                if (this._npmMods.includes(directory))
-                    return this.resync(directory);
                 delete require.cache[directory];
                 try {
                     this.require(directory);
@@ -125,7 +93,7 @@ class Sync {
         this._listeners.get(absolute).push([target, event, callback]);
         return target[method](event, callback);
     }
-    resync(id, _from, _child) {
+    resync(id, _from) {
         let from;
         if (typeof id === "string" && !id.startsWith("."))
             from = require.resolve(id);
@@ -136,19 +104,8 @@ class Sync {
         const directory = !path_1.default.isAbsolute(id) ? require.resolve(path_1.default.join(from, id)) : require.resolve(id);
         if (directory === __filename)
             throw new Error(selfReloadError);
-        const mod = require.cache[directory];
-        if (mod) {
-            // Drop all of the children (don't take that out of context) and re-require the parent.
-            // The parent will re-require all of the children it depends on and rebuild require.cache.
-            for (const child of mod.children) {
-                this.resync(child.filename, undefined, true);
-            }
-        }
         delete require.cache[directory];
-        if (!_child)
-            return this.require(directory);
-        else
-            return void 0;
+        return this.require(directory);
     }
 }
 module.exports = Sync;
