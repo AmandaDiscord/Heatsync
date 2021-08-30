@@ -3,8 +3,6 @@ import path from "path";
 import { EventEmitter } from "events";
 import { BackTracker } from "backtracker";
 
-const currentYear = new Date().getFullYear();
-
 const placeHolderKey = "__heatsync_default__";
 const selfReloadError = "Do not attempt to re-require Heatsync. If you REALLY want to, do it yourself with require.cache and deal with possibly ticking timers and event listeners, but don't complain if something breaks :(";
 
@@ -24,7 +22,7 @@ class Sync {
 	/**
 	 * A Map keyed by absolute file paths which are being watched by heatsync.
 	 */
-	private _watchers: Map<string, import("./HiddenTypes")> = new Map();
+	private _watchers: Map<string, import("fs").FSWatcher> = new Map();
 
 	public constructor() {
 		this.events.on("any", (filename: string) => {
@@ -47,7 +45,7 @@ class Sync {
 	public require(id: string, _from: string): any;
 	public require(id: string | Array<string>, _from?: string): any {
 		let from: string;
-		from = _from ? _from : (BackTracker.stack.first() as import("backtracker/dist/Caller")).dir;
+		from = _from ? _from : BackTracker.stack.first().dir;
 		if (Array.isArray(id)) return id.map(item => this.require(item, from));
 		const directory = !path.isAbsolute(id) ? require.resolve(path.join(from, id)) : require.resolve(id);
 		if (directory === __filename) throw new Error(selfReloadError);
@@ -61,19 +59,16 @@ class Sync {
 		const oldObject = this._references.get(directory);
 		if (!oldObject) {
 			this._references.set(directory, value);
-			this._watchers.set(directory, fs.watchFile(directory, { interval: currentYear }, () => {
+			this._watchers.set(directory, fs.watch(directory, () => {
 				delete require.cache[directory];
 				try {
 					this.require(directory);
-				} catch {
-					this._references.delete(directory);
-					this._listeners.delete(directory);
-					fs.unwatchFile(directory);
-					this._watchers.delete(directory);
+				} catch (e) {
+					this.events.emit("error", e);
 				}
 				this.events.emit(directory);
 				this.events.emit("any", directory);
-			}) as unknown as import("./HiddenTypes"));
+			}));
 		} else {
 			for (const key of Object.keys(oldObject)) {
 				if (key === placeHolderKey) continue
@@ -88,7 +83,7 @@ class Sync {
 	}
 
 	public addTemporaryListener<Target extends EventEmitter>(target: Target, event: Parameters<Target["on"]>[0], callback: (...args: Array<any>) => any, method: "on" | "once" = "on") {
-		const first = BackTracker.stack.first() as import("backtracker/dist/Caller");
+		const first = BackTracker.stack.first();
 		const absolute = path.normalize(`${first.dir}/${first.filename}`);
 		if (!this._listeners.get(absolute)) this._listeners.set(absolute, []);
 		this._listeners.get(absolute)!.push([target, event as string, callback]);
@@ -103,7 +98,7 @@ class Sync {
 	public resync(id: string | Array<string>, _from?: string): any {
 		let from: string;
 		if (typeof id === "string" && !id.startsWith(".")) from = require.resolve(id);
-		else from = _from ? _from : (BackTracker.stack.first() as import("backtracker/dist/Caller")).dir;
+		else from = _from ? _from : BackTracker.stack.first().dir;
 		if (Array.isArray(id)) return id.map(item => this.resync(item, from));
 		const directory = !path.isAbsolute(id) ? require.resolve(path.join(from, id)) : require.resolve(id);
 		if (directory === __filename) throw new Error(selfReloadError);

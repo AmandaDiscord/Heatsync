@@ -6,7 +6,6 @@ const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const events_1 = require("events");
 const backtracker_1 = require("backtracker");
-const currentYear = new Date().getFullYear();
 const placeHolderKey = "__heatsync_default__";
 const selfReloadError = "Do not attempt to re-require Heatsync. If you REALLY want to, do it yourself with require.cache and deal with possibly ticking timers and event listeners, but don't complain if something breaks :(";
 class Sync {
@@ -55,16 +54,13 @@ class Sync {
         const oldObject = this._references.get(directory);
         if (!oldObject) {
             this._references.set(directory, value);
-            this._watchers.set(directory, fs_1.default.watchFile(directory, { interval: currentYear }, () => {
+            this._watchers.set(directory, fs_1.default.watch(directory, () => {
                 delete require.cache[directory];
                 try {
                     this.require(directory);
                 }
-                catch {
-                    this._references.delete(directory);
-                    this._listeners.delete(directory);
-                    fs_1.default.unwatchFile(directory);
-                    this._watchers.delete(directory);
+                catch (e) {
+                    this.events.emit("error", e);
                 }
                 this.events.emit(directory);
                 this.events.emit("any", directory);

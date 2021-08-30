@@ -20,6 +20,8 @@ const [file1, file2, file3] = sync.require([
 	"./poggers.js",
 	"../lib/controller.js"
 ]);
+
+sync.events.on("error", console.error); // or node will kill your process if there is a require error
 ```
 
 # How it works
