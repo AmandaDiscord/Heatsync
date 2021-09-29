@@ -59,12 +59,16 @@ class Sync {
 		const oldObject = this._references.get(directory);
 		if (!oldObject) {
 			this._references.set(directory, value);
+			let previousModifyTime = 0;
 			this._watchers.set(directory, fs.watch(directory, () => {
 				delete require.cache[directory];
 				try {
+					const stat = fs.statSync(directory);
+					if (previousModifyTime === stat.mtime.getTime()) return;
+					previousModifyTime = stat.mtime.getTime();
 					this.require(directory);
 				} catch (e) {
-					this.events.emit("error", e);
+					return this.events.emit("error", e);
 				}
 				this.events.emit(directory);
 				this.events.emit("any", directory);
