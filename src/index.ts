@@ -59,19 +59,22 @@ class Sync {
 		const oldObject = this._references.get(directory);
 		if (!oldObject) {
 			this._references.set(directory, value);
-			let previousModifyTime = 0;
+			let timer: NodeJS.Timeout | null = null;
 			this._watchers.set(directory, fs.watch(directory, () => {
-				delete require.cache[directory];
-				try {
-					const stat = fs.statSync(directory);
-					if (previousModifyTime === stat.mtime.getTime()) return;
-					previousModifyTime = stat.mtime.getTime();
-					this.require(directory);
-				} catch (e) {
-					return this.events.emit("error", e);
+				if (timer) {
+					clearTimeout(timer);
+					timer = null;
 				}
-				this.events.emit(directory);
-				this.events.emit("any", directory);
+				timer = setTimeout(() => {
+					delete require.cache[directory];
+					try {
+						this.require(directory);
+					} catch (e) {
+						return this.events.emit("error", e);
+					}
+					this.events.emit(directory);
+					this.events.emit("any", directory);
+				}, 1000); // Only emit and re-require once all changes have finished
 			}));
 		} else {
 			for (const key of Object.keys(oldObject)) {
