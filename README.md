@@ -3,6 +3,16 @@ This is a module to watch and reload CommonJS Modules on modification and sync r
 
 In applications which require high uptime and are constantly being worked on as the development process normally is, developers might find it necessary to reload modules and have their changes take effect immediately without restarting the application. Luckily, that's where Heatsync comes in.
 
+# ESM Support
+ESM support was added in version 2.3.0. For everywhere you see a sync.require, you would use sync.import instead where sync.import is returning:
+Promise<{ default: any, prototype?: any }>; or an Array of those objects if using multi ID resolution.
+
+## How does ESM support work?
+You can add URL query strings to the import statement which are always different and the imported module will be refreshed. HeatSync does a ton of stuff for you though and is much more than just that. The rest is just HeatSync's usual (ab)use of memory references.
+
+## Caveats for ESM
+- None. Nope, none at all. Everything works as expected. Totally didn't have to spend a bunch of time debugging.
+
 # Basic Usage
 ```js
 const Heatsync = require("heatsync");

@@ -1,4 +1,4 @@
-const Heatsync = require("../dist/index.js");
+const Heatsync = require("../dist/index");
 const sync = new Heatsync();
 
 // we obviously need to bounce around this instance of sync to other files

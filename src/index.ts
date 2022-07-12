@@ -53,7 +53,7 @@ class Sync {
 		let value: any;
 		if (typeof req !== "object" || Array.isArray(req)) {
 			value = {};
-			Object.defineProperty(value, placeHolderKey, { value: req })
+			Object.defineProperty(value, placeHolderKey, { value: req });
 		} else value = req;
 
 		const oldObject = this._references.get(directory);
@@ -78,15 +78,23 @@ class Sync {
 			}));
 		} else {
 			for (const key of Object.keys(oldObject)) {
-				if (key === placeHolderKey) continue
+				if (key === placeHolderKey) continue;
 				if (!value[key]) delete oldObject[key];
 			}
 			Object.assign(oldObject, value);
 		}
 
 		const ref = this._references.get(directory);
-		if (!ref) return {}
-		else return ref[placeHolderKey] ? ref[placeHolderKey] : ref
+		if (!ref) return value;
+		else return ref[placeHolderKey] ? ref[placeHolderKey] : ref;
+	}
+
+	public import(id: string): Promise<{ default: any; prototype?: any }>;
+	public import(id: Array<string>): Promise<Array<{ default: any; prototype?: any }>>;
+	public import(id: Array<string>, _from: string): Promise<Array<{ default: any; prototype?: any }>>;
+	public import(id: string, _from: string): Promise<{ default: any; prototype?: any }>;
+	public import(_id: string | Array<string>, _from?: string): Promise<{ default: any; prototype?: any } | Array<{ default: any; prototype?: any }>> {
+		throw new Error("The CJS version of this module does not support the import statement");
 	}
 
 	public addTemporaryListener<Target extends EventEmitter>(target: Target, event: Parameters<Target["on"]>[0], callback: (...args: Array<any>) => any, method: "on" | "once" = "on") {
@@ -94,8 +102,8 @@ class Sync {
 		const absolute = path.normalize(`${first.dir}/${first.filename}`);
 		if (!this._listeners.get(absolute)) this._listeners.set(absolute, []);
 		this._listeners.get(absolute)!.push([target, event as string, callback]);
-		setImmediate(() => target[method](event, callback))
-		return target
+		setImmediate(() => target[method](event, callback));
+		return target;
 	}
 
 	public resync(id: string): any;
