@@ -1,5 +1,5 @@
 # Heatsync
-This is a module to watch and reload CommonJS Modules on modification and sync results with objects
+This is a module to watch and reload CommonJS and ES Modules on modification and sync results with objects
 
 In applications which require high uptime and are constantly being worked on as the development process normally is, developers might find it necessary to reload modules and have their changes take effect immediately without restarting the application. Luckily, that's where Heatsync comes in.
 
