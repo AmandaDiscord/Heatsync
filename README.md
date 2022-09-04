@@ -5,7 +5,7 @@ In applications which require high uptime and are constantly being worked on as 
 
 # ESM Support
 ESM support was added in version 2.3.0. For everywhere you see a sync.require, you would use sync.import instead where sync.import is returning:
-Promise<{ default: any, prototype?: any }>; or an Array of those objects if using multi ID resolution.
+Promise<any>; or an Array of those objects if using multi ID resolution.
 
 ## How does ESM support work?
 You can add URL query strings to the import statement which are always different and the imported module will be refreshed. HeatSync does a ton of stuff for you though and is much more than just that. The rest is just HeatSync's usual (ab)use of memory references.

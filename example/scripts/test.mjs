@@ -1,4 +1,4 @@
-import passthrough from "../passthrough";
+import passthrough from "../passthrough.js";
 const { sync } = passthrough;
 
 /**
