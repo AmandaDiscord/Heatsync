@@ -3,26 +3,30 @@ import path from "path";
 import { EventEmitter } from "events";
 import { BackTracker } from "backtracker";
 
-const placeHolderKey = "__heatsync_default__";
 const selfReloadError = "Do not attempt to re-require Heatsync. If you REALLY want to, do it yourself with require.cache and deal with possibly ticking timers and event listeners, but don't complain if something breaks :(";
+
+function isObject(item: any) {
+	if (typeof item !== "object" || item === null || Array.isArray(item)) return false
+	return (item.constructor?.name === "Object");
+}
 
 class Sync {
 	/**
 	 * An EventEmitter which emits absolute reloaded file paths.
 	 */
-	public events: EventEmitter = new EventEmitter();
+	public events = new EventEmitter();
 	/**
 	 * A Map keyed by absolute file paths which details listeners added to a target.
 	 */
-	private _listeners: Map<string, Array<[EventEmitter, string, (...args: Array<any>) => any]>> = new Map();
+	private _listeners = new Map<string, Array<[EventEmitter, string, (...args: Array<any>) => any]>>();
 	/**
 	 * A Map keyed by absolute file paths which holds references to imports.
 	 */
-	private _references: Map<string, any> = new Map();
+	private _references = new Map<string, any>();
 	/**
 	 * A Map keyed by absolute file paths which are being watched by heatsync.
 	 */
-	private _watchers: Map<string, import("fs").FSWatcher> = new Map();
+	private _watchers = new Map<string, import("fs").FSWatcher>();
 
 	public constructor() {
 		this.events.on("any", (filename: string) => {
@@ -49,12 +53,8 @@ class Sync {
 		if (Array.isArray(id)) return id.map(item => this.require(item, from));
 		const directory = !path.isAbsolute(id) ? require.resolve(path.join(from, id)) : require.resolve(id);
 		if (directory === __filename) throw new Error(selfReloadError);
-		const req = require(directory);
-		let value: any;
-		if (typeof req !== "object" || Array.isArray(req)) {
-			value = {};
-			Object.defineProperty(value, placeHolderKey, { value: req });
-		} else value = req;
+		const value = require(directory);
+		if (!isObject(value)) throw new Error(`${directory} does not export an Object and as such, changes made to the file cannot be reflected as the value would be immutable. Importing through HeatSync isn't supported and may be erraneous`);
 
 		const oldObject = this._references.get(directory);
 		if (!oldObject) {
@@ -78,7 +78,6 @@ class Sync {
 			}));
 		} else {
 			for (const key of Object.keys(oldObject)) {
-				if (key === placeHolderKey) continue;
 				if (!value[key]) delete oldObject[key];
 			}
 			Object.assign(oldObject, value);
@@ -86,7 +85,7 @@ class Sync {
 
 		const ref = this._references.get(directory);
 		if (!ref) return value;
-		else return ref[placeHolderKey] ? ref[placeHolderKey] : ref;
+		else return ref;
 	}
 
 	public import(id: string): Promise<{ default: any; prototype?: any }>;

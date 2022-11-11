@@ -4,8 +4,12 @@ import url from "url";
 import { EventEmitter } from "events";
 import { BackTracker } from "backtracker";
 
-const placeHolderKey = "__heatsync_default__";
 const refreshRegex = /(\?refresh=\d+)/;
+
+function isObject(item) {
+	if (typeof item !== "object" || item === null || Array.isArray(item)) return false
+	return (item.constructor?.name === "Object");
+}
 
 class Sync {
 	constructor() {
@@ -54,17 +58,10 @@ class Sync {
 		let directory = (!path.isAbsolute(id) ? await Sync._resolve(path.join(from, id)) : await Sync._resolve(id));
 		if (directory.startsWith("file://")) directory = url.fileURLToPath(directory);
 		directory = path.normalize(directory);
-		if (this._references.get(directory) && !this._needsrefresh.has(directory)) {
-			const re = this._references.get(directory);
-			return re[placeHolderKey] ? re[placeHolderKey] : re;
-		}
-		const req = await import(`file://${directory}?refresh=${Date.now()}`); // this busts the internal import cache
+		if (this._references.get(directory) && !this._needsrefresh.has(directory)) return this._references.get(directory);
+		const value = await import(`file://${directory}?refresh=${Date.now()}`); // this busts the internal import cache
+		if (!isObject(value)) throw new Error(`${directory} does not seem to export an Object and as such, changes made to the file cannot be reflected as the value would be immutable. Importing through HeatSync isn't supported and may be erraneous. Should the export be an Object made through Object.create, make sure that you reference the export.constructor as the Object.constructor as HeatSync checks constuctor names. Exports being Classes will not reload properly`);
 		this._needsrefresh.delete(directory);
-		let value;
-		if (typeof req !== "object" || Array.isArray(req)) {
-			value = {};
-			Object.defineProperty(value, placeHolderKey, { value: req });
-		} else value = req;
 
 		const oldObject = this._references.get(directory);
 		if (!oldObject) {
@@ -88,15 +85,14 @@ class Sync {
 			}));
 		} else {
 			for (const key of Object.keys(oldObject)) {
-				if (key === placeHolderKey || key === "default") continue;
 				if (!value[key]) delete oldObject[key];
 			}
-			if (oldObject.default && value && value.default) {
+			if (oldObject.default && value && value.default && isObject(oldObject.default) && isObject(value.default)) {
 				for (const key of Object.keys(oldObject.default)) {
 					if (!value.default[key]) delete oldObject.default[key];
 				}
 			}
-			if (oldObject.default && value && value.default) {
+			if (oldObject.default && value && value.default && isObject(oldObject.default) && isObject(value.default)) {
 				if (typeof value.default === "object" && !Array.isArray(value.default)) {
 					for (const key of Object.keys(value.default)) {
 						oldObject.default[key] = value.default[key];
@@ -110,8 +106,8 @@ class Sync {
 		}
 
 		const ref = this._references.get(directory);
-		if (!ref) return req;
-		else return ref[placeHolderKey] ? ref[placeHolderKey] : ref;
+		if (!ref) return value;
+		else return ref;
 	}
 
 	/**
