@@ -12,7 +12,18 @@ function isObject(item) {
 }
 
 class Sync {
-	constructor() {
+	/**
+	 * @param {{ watchFS?: boolean; persistentWatchers?: boolean; }} options
+	 */
+	constructor(options) {
+		/** @type {{ watchFS: boolean; persistentWatchers: boolean; }} */
+		// @ts-expect-error
+		this._options = {};
+		if (options?.watchFS === undefined) this._options.watchFS = true;
+		else this._options.watchFS = options.watchFS ?? false;
+		if (options?.persistentWatchers === undefined) this._options.persistentWatchers = true;
+		else this._options.persistentWatchers = options.persistentWatchers ?? false;
+
 		this.events = new EventEmitter();
 		/**
 		 * @type {Map<string, Array<[EventEmitter, string, (...args: Array<any>) => any]>>}
@@ -28,16 +39,6 @@ class Sync {
 		this._watchers = new Map();
 		/** @type {Set<string>} */
 		this._needsrefresh = new Set();
-
-		this.events.on("any", filename => {
-			const normalized = path.normalize(filename);
-			const listeners = this._listeners.get(normalized);
-			if (!listeners) return;
-
-			for (const [target, event, func] of listeners) {
-				target.removeListener(event, func);
-			}
-		});
 	}
 
 	require() {
@@ -67,22 +68,31 @@ class Sync {
 		if (!oldObject) {
 			this._references.set(directory, value);
 			let timer = null;
-			this._watchers.set(directory, fs.watch(directory, () => {
-				if (timer) {
-					clearTimeout(timer);
-					timer = null;
-				}
-				timer = setTimeout(async () => {
-					this._needsrefresh.add(directory);
-					this.events.emit(directory);
-					this.events.emit("any", directory);
-					try {
-						await this.import(directory);
-					} catch (e) {
-						return this.events.emit("error", e);
+			if (this._options.watchFS) {
+				this._watchers.set(directory, fs.watch(directory, { persistent: this._options.persistentWatchers }, () => {
+					if (timer) {
+						clearTimeout(timer);
+						timer = null;
 					}
-				}, 1000); // Only emit and re-require once all changes have finished
-			}));
+					timer = setTimeout(async () => {
+						this._needsrefresh.add(directory);
+						this.events.emit(directory);
+						this.events.emit("any", directory);
+						const normalized = path.normalize(directory);
+						const listeners = this._listeners.get(normalized);
+						if (!listeners) return;
+
+						for (const [target, event, func] of listeners) {
+							target.removeListener(event, func);
+						}
+						try {
+							await this.import(directory);
+						} catch (e) {
+							return this.events.emit("error", e);
+						}
+					}, 1000); // Only emit and re-require once all changes have finished
+				}));
+			}
 		} else {
 			for (const key of Object.keys(oldObject)) {
 				if (!value[key]) delete oldObject[key];
