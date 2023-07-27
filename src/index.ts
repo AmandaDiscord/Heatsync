@@ -94,11 +94,11 @@ class Sync {
 		else return ref;
 	}
 
-	public import(id: string): Promise<{ default: any; prototype?: any }>;
-	public import(id: Array<string>): Promise<Array<{ default: any; prototype?: any }>>;
-	public import(id: Array<string>, _from: string): Promise<Array<{ default: any; prototype?: any }>>;
-	public import(id: string, _from: string): Promise<{ default: any; prototype?: any }>;
-	public import(_id: string | Array<string>, _from?: string): Promise<{ default: any; prototype?: any } | Array<{ default: any; prototype?: any }>> {
+	public import(id: string): Promise<ImportedModule>;
+	public import(id: Array<string>): Promise<Array<ImportedModule>>;
+	public import(id: Array<string>, _from: string): Promise<Array<ImportedModule>>;
+	public import(id: string, _from: string): Promise<ImportedModule>;
+	public import(_id: string | Array<string>, _from?: string): Promise<ImportedModule | Array<ImportedModule>> {
 		throw new Error("The CJS version of this module does not support the import statement");
 	}
 
@@ -125,6 +125,11 @@ class Sync {
 		delete require.cache[directory];
 		return this.require(directory);
 	}
+}
+
+interface ImportedModule {
+	default: any;
+	[key: string | number | symbol]: any;
 }
 
 export = Sync;

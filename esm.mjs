@@ -56,7 +56,7 @@ class Sync {
 		if (from.startsWith("file://")) from = url.fileURLToPath(from);
 		from = path.normalize(from);
 		if (Array.isArray(id)) return Promise.all(id.map(item => this.import(item, from)));
-		let directory = (!path.isAbsolute(id) ? await Sync._resolve(path.join(from, id)) : await Sync._resolve(id));
+		let directory = (!path.isAbsolute(id) ? await Sync.#resolve(path.join(from, id)) : await Sync.#resolve(id));
 		if (directory.startsWith("file://")) directory = url.fileURLToPath(directory);
 		directory = path.normalize(directory);
 		if (this._references.get(directory) && !this._needsrefresh.has(directory)) return this._references.get(directory);
@@ -109,15 +109,15 @@ class Sync {
 					}
 				}
 			}
+
 			for (const key of Object.keys(value)) {
 				if (key === "default") continue;
 				oldObject[key] = value[key];
+				delete value[key] // Allows the old values to get garbage collected when the module is eventually imported again. Not the import itself though
 			} // Don't use Object.assign because of export default being readonly and no ignore list
 		}
 
-		const ref = this._references.get(directory);
-		if (!ref) return value;
-		else return ref;
+		return oldObject ?? value;
 	}
 
 	/**
@@ -141,9 +141,29 @@ class Sync {
 
 	/**
 	 * @param {string} id
+	 * @param {string} [_from]
+	 * @returns {Promise<any>}
+	 */
+	async resync(id, _from) {
+		/** @type {string} */
+		let from;
+		if (typeof id === "string" && !id.startsWith(".")) from = await Sync.#resolve(id);
+		else from = _from ? _from : BackTracker.stack.first().dir;
+		if (from.startsWith("file://")) from = url.fileURLToPath(from);
+		from = path.normalize(from);
+		if (Array.isArray(id)) return Promise.all(id.map(item => this.resync(item, from)));
+		let directory = (!path.isAbsolute(id) ? await Sync.#resolve(path.join(from, id)) : await Sync.#resolve(id));
+		if (directory.startsWith("file://")) directory = url.fileURLToPath(directory);
+		directory = path.normalize(directory);
+		this._needsrefresh.add(directory);
+		return this.import(directory);
+	}
+
+	/**
+	 * @param {string} id
 	 * @returns {Promise<string>}
 	 */
-	static async _resolve(id) {
+	static async #resolve(id) {
 		let absolute = path.normalize(id.startsWith("file://") ? url.fileURLToPath(id) : id);
 		const decon = path.parse(absolute);
 		if (!decon.ext || decon.ext.length === 0) {
@@ -163,26 +183,6 @@ class Sync {
 		}
 		await fs.promises.access(absolute, fs.constants.R_OK);
 		return absolute;
-	}
-
-	/**
-	 * @param {string} id
-	 * @param {string} [_from]
-	 * @returns {Promise<any>}
-	 */
-	async resync(id, _from) {
-		/** @type {string} */
-		let from;
-		if (typeof id === "string" && !id.startsWith(".")) from = await Sync._resolve(id);
-		else from = _from ? _from : BackTracker.stack.first().dir;
-		if (from.startsWith("file://")) from = url.fileURLToPath(from);
-		from = path.normalize(from);
-		if (Array.isArray(id)) return Promise.all(id.map(item => this.resync(item, from)));
-		let directory = (!path.isAbsolute(id) ? await Sync._resolve(path.join(from, id)) : await Sync._resolve(id));
-		if (directory.startsWith("file://")) directory = url.fileURLToPath(directory);
-		directory = path.normalize(directory);
-		this._needsrefresh.add(directory);
-		return this.import(directory);
 	}
 }
 
