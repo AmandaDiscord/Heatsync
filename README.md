@@ -16,7 +16,9 @@ ESM support was added in version 2.3.0. For everywhere you see a sync.require, y
 Promise<any>; or an Array of those objects if using multi ID resolution.
 
 ## How does ESM support work?
-You can add URL query strings to the import statement which are always different and the imported module will be refreshed (Unknown if the old Objects get garbage collected. ESM's internal import cache is weird). HeatSync does a ton of stuff for you though and is much more than just that. The rest is just HeatSync's usual (ab)use of memory references.
+You can add URL query strings to the import statement which are always different and the imported module will be refreshed (HeatSync makes it so that the **properties** of the old Object can get garbage collected, but not the Object itself nor the internal state representing the import. You will still have to refresh a lot of modules to hit your max memory, but the fact that HeatSync is causing a memory leak with **ESM only** is still something to consider. If ESM is avoidable, please avoid it if hot reloading is important to you).
+
+HeatSync does a ton of stuff for you though and is much more than just appending a query string. The rest is just HeatSync's usual (ab)use of memory references.
 
 # Basic Usage
 ```js
