@@ -1,13 +1,13 @@
 {
 	"compilerOptions": {
-		"allowSyntheticDefaultImports": true,
+		"allowSyntheticDefaultImports": false,
 		"allowJs": true,
 		"checkJs": true,
-		"esModuleInterop": true,
+		"esModuleInterop": false,
 		"declaration": true,
-		"emitDecoratorMetadata": true,
+		"emitDecoratorMetadata": false,
 		"experimentalDecorators": true,
-		"incremental": true,
+		"incremental": false,
 		"lib": ["esnext", "dom"],
 		"module": "commonjs",
 		"moduleResolution": "node",

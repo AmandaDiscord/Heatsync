@@ -1,7 +1,7 @@
-import fs from "fs";
-import path from "path";
+import fs = require("fs");
+import path = require("path");
 import { EventEmitter } from "events";
-import { BackTracker } from "backtracker";
+import { getStack } from "backtracker";
 
 const selfReloadError = "Do not attempt to re-require Heatsync. If you REALLY want to, do it yourself with require.cache and deal with possibly ticking timers and event listeners, but don't complain if something breaks :(";
 
@@ -19,6 +19,7 @@ class Sync {
 	 * A Map keyed by absolute file paths which details listeners added to a target.
 	 */
 	private _listeners = new Map<string, Array<[EventEmitter, string, (...args: Array<any>) => any]>>();
+	private _timers = new Map<string, Array<["timeout" | "interval", NodeJS.Timeout]>>();
 	/**
 	 * A Map keyed by absolute file paths which holds references to imports.
 	 */
@@ -47,7 +48,7 @@ class Sync {
 	public require(id: string, _from: string): any;
 	public require(id: string | Array<string>, _from?: string): any {
 		let from: string;
-		from = _from ? _from : BackTracker.stack.first().dir;
+		from = _from ?? getStack().first()!.dir;
 		if (Array.isArray(id)) return id.map(item => this.require(item, from));
 		const directory = !path.isAbsolute(id) ? require.resolve(path.join(from, id)) : require.resolve(id);
 		if (directory === __filename) throw new Error(selfReloadError);
@@ -74,10 +75,17 @@ class Sync {
 						this.events.emit(directory);
 						this.events.emit("any", directory);
 						const listeners = this._listeners.get(directory);
-						if (!listeners) return;
-
-						for (const [target, event, func] of listeners) {
-							target.removeListener(event, func);
+						if (listeners) {
+							for (const [target, event, func] of listeners) {
+								target.removeListener(event, func);
+							}
+						}
+						const timers = this._timers.get(directory)
+						if (timers) {
+							for (const [type, timer] of timers) {
+								if (type === "timeout") clearTimeout(timer)
+								else clearInterval(timer)
+							}
 						}
 					}, 1000).unref(); // Only emit and re-require once all changes have finished
 				}));
@@ -103,12 +111,34 @@ class Sync {
 	}
 
 	public addTemporaryListener<Target extends EventEmitter>(target: Target, event: Parameters<Target["on"]>[0], callback: (...args: Array<any>) => any, method: "on" | "once" = "on") {
-		const first = BackTracker.stack.first();
-		const absolute = path.normalize(`${first.dir}/${first.filename}`);
+		const first = getStack().first()!;
+		const absolute = path.normalize(first.absolute);
 		if (!this._listeners.get(absolute)) this._listeners.set(absolute, []);
 		this._listeners.get(absolute)!.push([target, event as string, callback]);
 		setImmediate(() => target[method](event, callback));
 		return target;
+	}
+
+	public addTemporaryTimeout(callback: () => void, ms?: number): NodeJS.Timeout;
+	public addTemporaryTimeout<TArgs extends any[]>(callback: (...args: TArgs) => void, ms?: number, ...args: TArgs): NodeJS.Timeout
+	public addTemporaryTimeout<TArgs extends any[]>(callback: (...args: TArgs) => void, ms?: number, ...args: TArgs): NodeJS.Timeout {
+		const first = getStack().first()!;
+		const absolute = path.normalize(`${first.dir}/${first.absolute}`);
+		if (!this._timers.get(absolute)) this._timers.set(absolute, []);
+		const timer = setTimeout<TArgs>(callback, ms, ...args);
+		this._timers.get(absolute)!.push(["timeout", timer]);
+		return timer;
+	}
+
+	public addTemporaryInterval(callback: () => void, ms?: number): NodeJS.Timeout;
+	public addTemporaryInterval<TArgs extends any[]>(callback: (...args: TArgs) => void, ms?: number, ...args: TArgs): NodeJS.Timeout
+	public addTemporaryInterval<TArgs extends any[]>(callback: (...args: TArgs) => void, ms?: number, ...args: TArgs): NodeJS.Timeout {
+		const first = getStack().first()!;
+		const absolute = path.normalize(`${first.dir}/${first.absolute}`);
+		if (!this._timers.get(absolute)) this._timers.set(absolute, []);
+		const timer = setInterval<TArgs>(callback, ms, ...args);
+		this._timers.get(absolute)!.push(["interval", timer]);
+		return timer;
 	}
 
 	public resync(id: string): any;
@@ -118,7 +148,7 @@ class Sync {
 	public resync(id: string | Array<string>, _from?: string): any {
 		let from: string;
 		if (typeof id === "string" && !id.startsWith(".")) from = require.resolve(id);
-		else from = _from ? _from : BackTracker.stack.first().dir;
+		else from = _from ?? getStack().first()!.dir;
 		if (Array.isArray(id)) return id.map(item => this.resync(item, from));
 		const directory = !path.isAbsolute(id) ? require.resolve(path.join(from, id)) : require.resolve(id);
 		if (directory === __filename) throw new Error(selfReloadError);

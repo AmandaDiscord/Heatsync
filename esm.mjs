@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import url from "url";
 import { EventEmitter } from "events";
-import { BackTracker } from "backtracker";
+import { getStack } from "backtracker";
 
 const refreshRegex = /(\?refresh=\d+)/;
 
@@ -39,6 +39,8 @@ class Sync {
 		this._watchers = new Map();
 		/** @type {Set<string>} */
 		this._needsrefresh = new Set();
+		/** @type {Map<string, Array<["timeout" | "interval", NodeJS.Timeout]>>} */
+		this._timers = new Map();
 	}
 
 	require() {
@@ -52,7 +54,8 @@ class Sync {
 	async import(id, _from) {
 		/** @type {string} */
 		let from;
-		from = _from ? _from : BackTracker.stack.first().dir;
+		// @ts-expect-error
+		from = _from ?? getStack().first().dir;
 		if (from.startsWith("file://")) from = url.fileURLToPath(from);
 		from = path.normalize(from);
 		if (Array.isArray(id)) return Promise.all(id.map(item => this.import(item, from)));
@@ -79,12 +82,22 @@ class Sync {
 						this.events.emit(directory);
 						this.events.emit("any", directory);
 						const normalized = path.normalize(directory);
-						const listeners = this._listeners.get(normalized);
-						if (!listeners) return;
 
-						for (const [target, event, func] of listeners) {
-							target.removeListener(event, func);
+						const listeners = this._listeners.get(normalized);
+						if (listeners) {
+							for (const [target, event, func] of listeners) {
+								target.removeListener(event, func);
+							}
 						}
+
+						const timers = this._timers.get(directory)
+						if (timers) {
+							for (const [type, timer] of timers) {
+								if (type === "timeout") clearTimeout(timer)
+								else clearInterval(timer)
+							}
+						}
+
 						try {
 							await this.import(directory);
 						} catch (e) {
@@ -129,7 +142,8 @@ class Sync {
 	 * @returns {Target}
 	 */
 	addTemporaryListener(target, event, callback, method = "on") {
-		let first = BackTracker.stack.first().path.replace(refreshRegex, "");
+		// @ts-expect-error
+		let first = getStack().first().absolute.replace(refreshRegex, "");
 		if (first.startsWith("file://")) first = url.fileURLToPath(first);
 		first = path.normalize(first);
 		if (!this._listeners.get(first)) this._listeners.set(first, []);
@@ -137,6 +151,46 @@ class Sync {
 		this._listeners.get(first).push([target, event, callback]);
 		setImmediate(() => target[method](event, callback));
 		return target;
+	}
+
+	/**
+	 * @template {any[]} TArgs
+	 * @param {(...args: TArgs) => void} callback
+	 * @param {number} [ms]
+	 * @param {...TArgs} args
+	 * @returns {NodeJS.Timeout}
+	 */
+	addTemporaryTimeout(callback, ms, ...args) {
+		const first = getStack().first();
+		// @ts-expect-error
+		const absolute = path.normalize(`${first.dir}/${first.absolute}`);
+		if (!this._timers.get(absolute)) this._timers.set(absolute, []);
+		/** @type {NodeJS.Timeout} */
+		// @ts-expect-error
+		const timer = setTimeout(callback, ms, ...args);
+		// @ts-expect-error
+		this._timers.get(absolute).push(["timeout", timer]);
+		return timer;
+	}
+
+	/**
+	 * @template {any[]} TArgs
+	 * @param {(...args: TArgs) => void} callback
+	 * @param {number} [ms]
+	 * @param {...TArgs} args
+	 * @returns {NodeJS.Timeout}
+	 */
+	addTemporaryInterval(callback, ms, ...args) {
+		const first = getStack().first();
+		// @ts-expect-error
+		const absolute = path.normalize(`${first.dir}/${first.absolute}`);
+		if (!this._timers.get(absolute)) this._timers.set(absolute, []);
+		/** @type {NodeJS.Timeout} */
+		// @ts-expect-error
+		const timer = setInterval(callback, ms, ...args);
+		// @ts-expect-error
+		this._timers.get(absolute).push(["interval", timer]);
+		return timer;
 	}
 
 	/**
@@ -148,7 +202,8 @@ class Sync {
 		/** @type {string} */
 		let from;
 		if (typeof id === "string" && !id.startsWith(".")) from = await Sync.#resolve(id);
-		else from = _from ? _from : BackTracker.stack.first().dir;
+		// @ts-expect-error
+		else from = _from ?? getStack().first().dir;
 		if (from.startsWith("file://")) from = url.fileURLToPath(from);
 		from = path.normalize(from);
 		if (Array.isArray(id)) return Promise.all(id.map(item => this.resync(item, from)));
