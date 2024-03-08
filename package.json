@@ -1,10 +1,10 @@
 {
   "name": "heatsync",
-  "version": "2.5.0",
+  "version": "2.5.1",
   "description": "A module to watch and reload CommonJS Modules on modification and sync results with objects",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "compile": "tsup src/index.ts --clean --dts --sourcemap --format cjs --target node14 --minify-whitespace --minify-syntax --treeshake"
+    "compile": "tsup src/index.ts --clean --dts --sourcemap --format cjs --target node14 --minify-whitespace --minify-syntax --treeshake && node ./fixup-dts.js"
   },
   "repository": "git://github.com/AmandaDiscord/Heatsync.git",
   "author": "cloudrac3r",
