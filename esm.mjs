@@ -43,13 +43,19 @@ class Sync {
 		this._timers = new Map();
 	}
 
-	require() {
+	/**
+	 * @param {string | Array<string>} id
+	 * @param {string} [_from]
+	 * @returns {any}
+	 */
+	require(id, _from) {
 		throw new Error("The ESM version of this module does not support the require statement");
 	}
 
 	/**
-	 * @param {string} id
+	 * @param {string | Array<string>} id
 	 * @param {string} [_from]
+	 * @returns {Promise<any>}
 	 */
 	async import(id, _from) {
 		/** @type {string} */
@@ -161,10 +167,11 @@ class Sync {
 	 * @returns {NodeJS.Timeout}
 	 */
 	addTemporaryTimeout(callback, ms, ...args) {
-		const first = getStack().first();
 		// @ts-expect-error
-		const absolute = path.normalize(`${first.dir}/${first.absolute}`);
-		if (!this._timers.get(absolute)) this._timers.set(absolute, []);
+		let first = getStack().first().absolute.replace(refreshRegex, "");
+		if (first.startsWith("file://")) first = url.fileURLToPath(first);
+		first = path.normalize(first);
+		if (!this._timers.get(first)) this._timers.set(first, []);
 		/** @type {NodeJS.Timeout} */
 		// @ts-expect-error
 		const timer = setTimeout(callback, ms, ...args);
@@ -181,10 +188,11 @@ class Sync {
 	 * @returns {NodeJS.Timeout}
 	 */
 	addTemporaryInterval(callback, ms, ...args) {
-		const first = getStack().first();
 		// @ts-expect-error
-		const absolute = path.normalize(`${first.dir}/${first.absolute}`);
-		if (!this._timers.get(absolute)) this._timers.set(absolute, []);
+		let first = getStack().first().absolute.replace(refreshRegex, "");
+		if (first.startsWith("file://")) first = url.fileURLToPath(first);
+		first = path.normalize(first);
+		if (!this._timers.get(first)) this._timers.set(first, []);
 		/** @type {NodeJS.Timeout} */
 		// @ts-expect-error
 		const timer = setInterval(callback, ms, ...args);

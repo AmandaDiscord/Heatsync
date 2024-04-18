@@ -123,7 +123,7 @@ class Sync {
 	public addTemporaryTimeout<TArgs extends any[]>(callback: (...args: TArgs) => void, ms?: number, ...args: TArgs): NodeJS.Timeout
 	public addTemporaryTimeout<TArgs extends any[]>(callback: (...args: TArgs) => void, ms?: number, ...args: TArgs): NodeJS.Timeout {
 		const first = getStack().first()!;
-		const absolute = path.normalize(`${first.dir}/${first.absolute}`);
+		const absolute = path.normalize(first.absolute);
 		if (!this._timers.get(absolute)) this._timers.set(absolute, []);
 		const timer = setTimeout<TArgs>(callback, ms, ...args);
 		this._timers.get(absolute)!.push(["timeout", timer]);
@@ -134,7 +134,7 @@ class Sync {
 	public addTemporaryInterval<TArgs extends any[]>(callback: (...args: TArgs) => void, ms?: number, ...args: TArgs): NodeJS.Timeout
 	public addTemporaryInterval<TArgs extends any[]>(callback: (...args: TArgs) => void, ms?: number, ...args: TArgs): NodeJS.Timeout {
 		const first = getStack().first()!;
-		const absolute = path.normalize(`${first.dir}/${first.absolute}`);
+		const absolute = path.normalize(first.absolute);
 		if (!this._timers.get(absolute)) this._timers.set(absolute, []);
 		const timer = setInterval<TArgs>(callback, ms, ...args);
 		this._timers.get(absolute)!.push(["interval", timer]);
