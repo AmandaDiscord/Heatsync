@@ -114,11 +114,11 @@ class Sync {
 			}
 		} else {
 			for (const key of Object.keys(oldObject)) {
-				if (!value[key]) delete oldObject[key];
+				if (value[key] === undefined) delete oldObject[key];
 			}
 			if (oldObject.default && value && value.default && isObject(oldObject.default) && isObject(value.default)) {
 				for (const key of Object.keys(oldObject.default)) {
-					if (!value.default[key]) delete oldObject.default[key];
+					if (value.default[key] === undefined) delete oldObject.default[key];
 				}
 			}
 			if (oldObject.default && value && value.default && isObject(oldObject.default) && isObject(value.default)) {
