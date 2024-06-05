@@ -92,7 +92,7 @@ class Sync {
 			}
 		} else {
 			for (const key of Object.keys(oldObject)) {
-				if (!value[key]) delete oldObject[key];
+				if (value[key] === undefined) delete oldObject[key];
 			}
 			Object.assign(oldObject, value);
 		}
