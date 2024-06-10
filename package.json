@@ -17,8 +17,8 @@
     "backtracker": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "20.12.7",
-    "tsup": "^8.0.2",
+    "@types/node": "20.14.2",
+    "tsup": "^8.1.0",
     "typescript": "^5.4.5"
   },
   "files": [
