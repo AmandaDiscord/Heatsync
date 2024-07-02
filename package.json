@@ -1,6 +1,6 @@
 {
   "name": "heatsync",
-  "version": "2.5.3",
+  "version": "2.5.4",
   "description": "A module to watch and reload CommonJS Modules on modification and sync results with objects",
   "types": "./dist/index.d.ts",
   "scripts": {
@@ -17,9 +17,9 @@
     "backtracker": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "20.14.2",
+    "@types/node": "20.14.9",
     "tsup": "^8.1.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.5.3"
   },
   "files": [
     "dist",

@@ -13,7 +13,7 @@ function isObject(item) {
 
 class Sync {
 	/**
-	 * @param {{ watchFS?: boolean; persistentWatchers?: boolean; }} options
+	 * @param {{ watchFS?: boolean; persistentWatchers?: boolean; }} [options]
 	 */
 	constructor(options) {
 		/** @type {{ watchFS: boolean; persistentWatchers: boolean; }} */
