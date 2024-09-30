@@ -111,6 +111,7 @@ class Sync {
 	}
 
 	public addTemporaryListener<Target extends EventEmitter>(target: Target, event: Parameters<Target["on"]>[0], callback: (...args: Array<any>) => any, method: "on" | "once" = "on") {
+		if (typeof target?.[method] !== "function") throw new TypeError(`${target?.constructor?.name ?? typeof target} does not include the method "${method}". It may not implement/extend or only partially implements/extends an EventEmitter`);
 		const first = getStack().first()!;
 		const absolute = path.normalize(first.absolute);
 		if (!this._listeners.get(absolute)) this._listeners.set(absolute, []);

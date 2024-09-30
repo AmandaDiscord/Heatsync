@@ -148,12 +148,13 @@ class Sync {
 	 * @returns {Target}
 	 */
 	addTemporaryListener(target, event, callback, method = "on") {
-		// @ts-expect-error
+		if (typeof target?.[method] !== "function") throw new TypeError(`${target?.constructor?.name ?? typeof target} does not include the method "${method}". It may not implement/extend or only partially implements/extends an EventEmitter`);
+		// @ts-expect-error It's always there, trust!
 		let first = getStack().first().absolute.replace(refreshRegex, "");
 		if (first.startsWith("file://")) first = url.fileURLToPath(first);
 		first = path.normalize(first);
 		if (!this._listeners.get(first)) this._listeners.set(first, []);
-		// @ts-ignore
+		// @ts-expect-error On thread race conditions???
 		this._listeners.get(first).push([target, event, callback]);
 		setImmediate(() => target[method](event, callback));
 		return target;
