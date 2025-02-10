@@ -11,18 +11,22 @@ function isObject(item) {
 	return (item.constructor?.name === "Object");
 }
 
+/** @typedef {(path: string, options: fs.WatchFileOptions & {bigint?: false | undefined}, cb: (...args: any[]) => any) => any;} WatchFunction */
+
 class Sync {
 	/**
-	 * @param {{ watchFS?: boolean; persistentWatchers?: boolean; }} [options]
+	 * @param {{ watchFS?: boolean; persistentWatchers?: boolean; watchFunction?: WatchFunction }} [options]
 	 */
 	constructor(options) {
-		/** @type {{ watchFS: boolean; persistentWatchers: boolean; }} */
+		/** @type {{ watchFS: boolean; persistentWatchers: boolean; watchFunction?: WatchFunction }} */
 		// @ts-expect-error
 		this._options = {};
 		if (options?.watchFS === undefined) this._options.watchFS = true;
 		else this._options.watchFS = options.watchFS ?? false;
 		if (options?.persistentWatchers === undefined) this._options.persistentWatchers = true;
 		else this._options.persistentWatchers = options.persistentWatchers ?? false;
+		if (options?.watchFunction === undefined) this._options.watchFunction = fs.watch;
+		else this._options.watchFunction = options.watchFunction;
 
 		this.events = new EventEmitter();
 		/**
@@ -78,7 +82,7 @@ class Sync {
 			this._references.set(directory, value);
 			let timer = null;
 			if (this._options.watchFS) {
-				this._watchers.set(directory, fs.watch(directory, { persistent: this._options.persistentWatchers }, () => {
+				this._watchers.set(directory, this._options.watchFunction(directory, { persistent: this._options.persistentWatchers }, () => {
 					if (timer) {
 						clearTimeout(timer);
 						timer = null;
