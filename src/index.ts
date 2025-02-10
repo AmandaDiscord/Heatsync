@@ -10,6 +10,8 @@ function isObject(item: any) {
 	return (item.constructor?.name === "Object");
 }
 
+type WatchFunction = (path: string, options: fs.WatchFileOptions & {bigint?: false | undefined}, cb: (...args: any[]) => any) => any;
+
 class Sync {
 	/**
 	 * An EventEmitter which emits absolute reloaded file paths.
@@ -28,14 +30,16 @@ class Sync {
 	 * A Map keyed by absolute file paths which are being watched by heatsync.
 	 */
 	private _watchers = new Map<string, import("fs").FSWatcher>();
-	private _options: { watchFS: boolean; persistentWatchers: boolean; }
+	private _options: { watchFS: boolean; persistentWatchers: boolean; watchFunction: WatchFunction }
 
-	public constructor(options?: { watchFS?: boolean; persistentWatchers?: boolean; }) {
-		this._options = {} as { watchFS: boolean; persistentWatchers: boolean; };
+	public constructor(options?: { watchFS?: boolean; persistentWatchers?: boolean; watchFunction?: WatchFunction }) {
+		this._options = {} as typeof this._options;
 		if (options?.watchFS === undefined) this._options.watchFS = true;
 		else this._options.watchFS = options.watchFS ?? false;
 		if (options?.persistentWatchers === undefined) this._options.persistentWatchers = true;
 		else this._options.persistentWatchers = options.persistentWatchers ?? false;
+		if (options?.watchFunction === undefined) this._options.watchFunction = fs.watch;
+		else this._options.watchFunction = options.watchFunction;
 	}
 
 	/**
@@ -60,32 +64,35 @@ class Sync {
 			this._references.set(directory, value);
 			if (this._options.watchFS) {
 				let timer: NodeJS.Timeout | null = null;
-				this._watchers.set(directory, fs.watch(directory, { persistent: this._options.persistentWatchers }, () => {
+				this._watchers.set(directory, this._options.watchFunction(directory, { persistent: this._options.persistentWatchers }, () => {
 					if (timer) {
 						clearTimeout(timer);
 						timer = null;
 					}
 					timer = setTimeout(() => {
 						delete require.cache[directory];
-						try {
-							this.require(directory);
-						} catch (e) {
-							return this.events.emit("error", e);
-						}
 						this.events.emit(directory);
 						this.events.emit("any", directory);
+
 						const listeners = this._listeners.get(directory);
 						if (listeners) {
 							for (const [target, event, func] of listeners) {
 								target.removeListener(event, func);
 							}
 						}
+
 						const timers = this._timers.get(directory)
 						if (timers) {
 							for (const [type, timer] of timers) {
 								if (type === "timeout") clearTimeout(timer)
 								else clearInterval(timer)
 							}
+						}
+
+						try {
+							this.require(directory);
+						} catch (e) {
+							return this.events.emit("error", e);
 						}
 					}, 1000).unref(); // Only emit and re-require once all changes have finished
 				}));
