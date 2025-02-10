@@ -11,14 +11,14 @@ function isObject(item) {
 	return (item.constructor?.name === "Object");
 }
 
-/** @typedef {(path: string, options: fs.WatchFileOptions & {bigint?: false | undefined}, cb: (...args: any[]) => any) => any;} WatchFunction */
+/** @typedef {(path: string, options: fs.WatchFileOptions & { bigint?: false }, cb: (...args: any[]) => any) => any} WatchFunction */
 
 class Sync {
 	/**
 	 * @param {{ watchFS?: boolean; persistentWatchers?: boolean; watchFunction?: WatchFunction }} [options]
 	 */
 	constructor(options) {
-		/** @type {{ watchFS: boolean; persistentWatchers: boolean; watchFunction?: WatchFunction }} */
+		/** @type {{ watchFS: boolean; persistentWatchers: boolean; watchFunction: WatchFunction }} */
 		// @ts-expect-error
 		this._options = {};
 		if (options?.watchFS === undefined) this._options.watchFS = true;

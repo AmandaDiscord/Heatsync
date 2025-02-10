@@ -10,7 +10,10 @@ function isObject(item: any) {
 	return (item.constructor?.name === "Object");
 }
 
-type WatchFunction = (path: string, options: fs.WatchFileOptions & {bigint?: false | undefined}, cb: (...args: any[]) => any) => any;
+/**
+ * This will be fs.watch or fs.watchFile
+ */
+type WatchFunction = (path: string, options: fs.WatchFileOptions & { bigint?: false }, cb: (...args: any[]) => any) => any;
 
 class Sync {
 	/**
@@ -20,20 +23,19 @@ class Sync {
 	/**
 	 * A Map keyed by absolute file paths which details listeners added to a target.
 	 */
-	private _listeners = new Map<string, Array<[EventEmitter, string, (...args: Array<any>) => any]>>();
-	private _timers = new Map<string, Array<["timeout" | "interval", NodeJS.Timeout]>>();
+	private readonly _listeners = new Map<string, Array<[EventEmitter, string, (...args: Array<any>) => any]>>();
+	private readonly _timers = new Map<string, Array<["timeout" | "interval", NodeJS.Timeout]>>();
 	/**
 	 * A Map keyed by absolute file paths which holds references to imports.
 	 */
-	private _references = new Map<string, any>();
+	private readonly _references = new Map<string, any>();
 	/**
 	 * A Map keyed by absolute file paths which are being watched by heatsync.
 	 */
-	private _watchers = new Map<string, import("fs").FSWatcher>();
-	private _options: { watchFS: boolean; persistentWatchers: boolean; watchFunction: WatchFunction }
+	private readonly _watchers = new Map<string, import("fs").FSWatcher>();
+	private readonly _options: { watchFS: boolean; persistentWatchers: boolean; watchFunction: WatchFunction } = {} as typeof this._options;
 
 	public constructor(options?: { watchFS?: boolean; persistentWatchers?: boolean; watchFunction?: WatchFunction }) {
-		this._options = {} as typeof this._options;
 		if (options?.watchFS === undefined) this._options.watchFS = true;
 		else this._options.watchFS = options.watchFS ?? false;
 		if (options?.persistentWatchers === undefined) this._options.persistentWatchers = true;
