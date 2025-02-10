@@ -67,25 +67,28 @@ class Sync {
 					}
 					timer = setTimeout(() => {
 						delete require.cache[directory];
-						try {
-							this.require(directory);
-						} catch (e) {
-							return this.events.emit("error", e);
-						}
 						this.events.emit(directory);
 						this.events.emit("any", directory);
+
 						const listeners = this._listeners.get(directory);
 						if (listeners) {
 							for (const [target, event, func] of listeners) {
 								target.removeListener(event, func);
 							}
 						}
+
 						const timers = this._timers.get(directory)
 						if (timers) {
 							for (const [type, timer] of timers) {
 								if (type === "timeout") clearTimeout(timer)
 								else clearInterval(timer)
 							}
+						}
+
+						try {
+							this.require(directory);
+						} catch (e) {
+							return this.events.emit("error", e);
 						}
 					}, 1000).unref(); // Only emit and re-require once all changes have finished
 				}));
