@@ -4,7 +4,9 @@ import url from "url";
 import { EventEmitter } from "events";
 import { getStack } from "backtracker";
 
+const selfReloadError = "Do not attempt to re-require Heatsync. If you REALLY want to, do it yourself with require.cache and deal with possibly ticking timers and event listeners, but don't complain if something breaks :(";
 const refreshRegex = /(\?refresh=\d+)/;
+const failedSymbol = Symbol("LOADING_MODULE_FAILED");
 
 function isObject(item) {
 	if (typeof item !== "object" || item === null || Array.isArray(item)) return false
@@ -26,7 +28,7 @@ class Sync {
 		if (options?.persistentWatchers === undefined) this._options.persistentWatchers = true;
 		else this._options.persistentWatchers = options.persistentWatchers ?? false;
 		if (options?.watchFunction === undefined) this._options.watchFunction = fs.watch;
-		else this._options.watchFunction = options.watchFunction;
+		else this._options.watchFunction = options.watchFunction ?? fs.watch;
 
 		this.events = new EventEmitter();
 		/**
@@ -45,6 +47,8 @@ class Sync {
 		this._needsrefresh = new Set();
 		/** @type {Map<string, Array<["timeout" | "interval", NodeJS.Timeout]>>} */
 		this._timers = new Map();
+		/** @type {Map<string, any>} */
+		this._remembered = new Map();
 	}
 
 	/**
@@ -53,7 +57,7 @@ class Sync {
 	 * @returns {any}
 	 */
 	require(id, _from) {
-		throw new Error("The ESM version of this module does not support the require statement");
+		throw new Error("The ESM version of heatsync does not support the require statement. Use import instead.");
 	}
 
 	/**
@@ -69,10 +73,11 @@ class Sync {
 		if (from.startsWith("file://")) from = url.fileURLToPath(from);
 		from = path.normalize(from);
 		if (Array.isArray(id)) return Promise.all(id.map(item => this.import(item, from)));
-		let directory = (!path.isAbsolute(id) ? await Sync.#resolve(path.join(from, id)) : await Sync.#resolve(id));
+		let directory = (!path.isAbsolute(id) ? await Sync._resolve(path.join(from, id)) : await Sync._resolve(id));
 		if (directory.startsWith("file://")) directory = url.fileURLToPath(directory);
 		directory = path.normalize(directory);
 		if (this._references.get(directory) && !this._needsrefresh.has(directory)) return this._references.get(directory);
+		if (directory === path.normalize(import.meta.url.startsWith("file://") ? url.fileURLToPath(import.meta.url) : import.meta.url)) throw new Error(selfReloadError);
 		const value = await import(`file://${directory}?refresh=${Date.now()}`); // this busts the internal import cache
 		if (!isObject(value)) throw new Error(`${directory} does not seem to export an Object and as such, changes made to the file cannot be reflected as the value would be immutable. Importing through HeatSync isn't supported and may be erraneous. Should the export be an Object made through Object.create, make sure that you reference the export.constructor as the Object.constructor as HeatSync checks constuctor names. Exports being Classes will not reload properly`);
 		this._needsrefresh.delete(directory);
@@ -80,42 +85,8 @@ class Sync {
 		const oldObject = this._references.get(directory);
 		if (!oldObject) {
 			this._references.set(directory, value);
-			let timer = null;
-			if (this._options.watchFS) {
-				this._watchers.set(directory, this._options.watchFunction(directory, { persistent: this._options.persistentWatchers }, () => {
-					if (timer) {
-						clearTimeout(timer);
-						timer = null;
-					}
-					timer = setTimeout(async () => {
-						this._needsrefresh.add(directory);
-						this.events.emit(directory);
-						this.events.emit("any", directory);
-						const normalized = path.normalize(directory);
 
-						const listeners = this._listeners.get(normalized);
-						if (listeners) {
-							for (const [target, event, func] of listeners) {
-								target.removeListener(event, func);
-							}
-						}
-
-						const timers = this._timers.get(directory)
-						if (timers) {
-							for (const [type, timer] of timers) {
-								if (type === "timeout") clearTimeout(timer)
-								else clearInterval(timer)
-							}
-						}
-
-						try {
-							await this.import(directory);
-						} catch (e) {
-							return this.events.emit("error", e);
-						}
-					}, 1000); // Only emit and re-require once all changes have finished
-				}));
-			}
+			if (this._options.watchFS) this._watchFile(directory);
 		} else {
 			for (const key of Object.keys(oldObject)) {
 				if (value[key] === undefined) delete oldObject[key];
@@ -214,24 +185,112 @@ class Sync {
 	async resync(id, _from) {
 		/** @type {string} */
 		let from;
-		if (typeof id === "string" && !id.startsWith(".")) from = await Sync.#resolve(id);
+		if (typeof id === "string" && !id.startsWith(".")) from = await Sync._resolve(id);
 		// @ts-expect-error
 		else from = _from ?? getStack().first().dir;
 		if (from.startsWith("file://")) from = url.fileURLToPath(from);
 		from = path.normalize(from);
 		if (Array.isArray(id)) return Promise.all(id.map(item => this.resync(item, from)));
-		let directory = (!path.isAbsolute(id) ? await Sync.#resolve(path.join(from, id)) : await Sync.#resolve(id));
+		let directory = (!path.isAbsolute(id) ? await Sync._resolve(path.join(from, id)) : await Sync._resolve(id));
 		if (directory.startsWith("file://")) directory = url.fileURLToPath(directory);
 		directory = path.normalize(directory);
+
+		this._watchers.get(directory)?.close();
+		this._watchers.delete(directory);
+
+		const result = await this._watchFunctionCallback(directory);
+
+		if (result === failedSymbol) throw new Error("Module failed to resync");
+
+		if (this._options.watchFS && !this._watchers.has(directory)) this._watchFile(directory);
+
+		return result;
+	}
+
+	/**
+	 * @template T
+	 * @param {string} key
+	 * @param {() => T} getter
+	 * @returns {Promise<T>}
+	 */
+	async remember(key, getter) {
+		// @ts-expect-error
+		let first = getStack().first().srcAbsolute.replace(refreshRegex, "");
+		if (first.startsWith("file://")) first = url.fileURLToPath(first);
+		first = path.normalize(first);
+
+		key = `${first}$${key}`
+
+		if (this._remembered.has(key)) return this._remembered.get(key);
+
+		const value = getter();
+		this._remembered.set(key, value);
+		return value;
+	}
+
+
+	/**
+	 * @param {string} directory
+	 * @returns {void}
+	 * @private
+	 */
+	_watchFile(directory) {
+		/** @type {NodeJS.Timeout | null} */
+		let timer = null;
+
+		this._watchers.set(
+			directory,
+			this._options.watchFunction(directory, { persistent: this._options.persistentWatchers }, () => {
+				if (timer) {
+					clearTimeout(timer);
+					timer = null;
+				}
+
+				timer = setTimeout(() => this._watchFunctionCallback(directory), 1000).unref();
+			})
+		);
+	}
+
+	/**
+	 * @param {string} directory
+	 * @returns {Promise<any>}
+	 * @private
+	 */
+	async _watchFunctionCallback(directory) {
 		this._needsrefresh.add(directory);
-		return this.import(directory);
+		this.events.emit(directory);
+		this.events.emit("any", directory);
+		const normalized = path.normalize(directory);
+
+		const listeners = this._listeners.get(normalized);
+		if (listeners) {
+			for (const [target, event, func] of listeners) {
+				target.removeListener(event, func);
+			}
+		}
+
+		const timers = this._timers.get(directory);
+		if (timers) {
+			for (const [type, timer] of timers) {
+				if (type === "timeout") clearTimeout(timer);
+				else clearInterval(timer);
+			}
+		}
+
+		try {
+			await this.import(directory);
+		} catch (e) {
+			this.events.emit("error", e);
+			return failedSymbol;
+		}
 	}
 
 	/**
 	 * @param {string} id
 	 * @returns {Promise<string>}
+	 * @private
 	 */
-	static async #resolve(id) {
+	static async _resolve(id) {
 		let absolute = path.normalize(id.startsWith("file://") ? url.fileURLToPath(id) : id);
 		const decon = path.parse(absolute);
 		if (!decon.ext || decon.ext.length === 0) {

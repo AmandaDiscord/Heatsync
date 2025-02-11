@@ -4,6 +4,7 @@ import { EventEmitter } from "events";
 import { getStack } from "backtracker";
 
 const selfReloadError = "Do not attempt to re-require Heatsync. If you REALLY want to, do it yourself with require.cache and deal with possibly ticking timers and event listeners, but don't complain if something breaks :(";
+const failedSymbol = Symbol("LOADING_MODULE_FAILED");
 
 function isObject(item: any) {
 	if (typeof item !== "object" || item === null || Array.isArray(item)) return false
@@ -20,19 +21,13 @@ class Sync {
 	 * An EventEmitter which emits absolute reloaded file paths.
 	 */
 	public events = new EventEmitter();
-	/**
-	 * A Map keyed by absolute file paths which details listeners added to a target.
-	 */
+
 	private readonly _listeners = new Map<string, Array<[EventEmitter, string, (...args: Array<any>) => any]>>();
 	private readonly _timers = new Map<string, Array<["timeout" | "interval", NodeJS.Timeout]>>();
-	/**
-	 * A Map keyed by absolute file paths which holds references to imports.
-	 */
+	private readonly _remembered = new Map<string, any>();
 	private readonly _references = new Map<string, any>();
-	/**
-	 * A Map keyed by absolute file paths which are being watched by heatsync.
-	 */
 	private readonly _watchers = new Map<string, import("fs").FSWatcher>();
+
 	private readonly _options: { watchFS: boolean; persistentWatchers: boolean; watchFunction: WatchFunction } = {} as typeof this._options;
 
 	public constructor(options?: { watchFS?: boolean; persistentWatchers?: boolean; watchFunction?: WatchFunction }) {
@@ -64,41 +59,8 @@ class Sync {
 		const oldObject = this._references.get(directory);
 		if (!oldObject) {
 			this._references.set(directory, value);
-			if (this._options.watchFS) {
-				let timer: NodeJS.Timeout | null = null;
-				this._watchers.set(directory, this._options.watchFunction(directory, { persistent: this._options.persistentWatchers }, () => {
-					if (timer) {
-						clearTimeout(timer);
-						timer = null;
-					}
-					timer = setTimeout(() => {
-						delete require.cache[directory];
-						this.events.emit(directory);
-						this.events.emit("any", directory);
 
-						const listeners = this._listeners.get(directory);
-						if (listeners) {
-							for (const [target, event, func] of listeners) {
-								target.removeListener(event, func);
-							}
-						}
-
-						const timers = this._timers.get(directory)
-						if (timers) {
-							for (const [type, timer] of timers) {
-								if (type === "timeout") clearTimeout(timer)
-								else clearInterval(timer)
-							}
-						}
-
-						try {
-							this.require(directory);
-						} catch (e) {
-							return this.events.emit("error", e);
-						}
-					}, 1000).unref(); // Only emit and re-require once all changes have finished
-				}));
-			}
+			if (this._options.watchFS) this._watchFile(directory)
 		} else {
 			for (const key of Object.keys(oldObject)) {
 				if (value[key] === undefined) delete oldObject[key];
@@ -111,14 +73,22 @@ class Sync {
 		else return ref;
 	}
 
+	/**
+	 * The return value is any, because TypeScript doesn't like dynamically typed return values for import.
+	 * It expects a string literal. Cannot be a Generic extending "" either.
+	 * You will have to type the return value yourself if typings are important to you.
+	 */
 	public import(id: string): Promise<ImportedModule>;
 	public import(id: Array<string>): Promise<Array<ImportedModule>>;
 	public import(id: Array<string>, _from: string): Promise<Array<ImportedModule>>;
 	public import(id: string, _from: string): Promise<ImportedModule>;
 	public import(_id: string | Array<string>, _from?: string): Promise<ImportedModule | Array<ImportedModule>> {
-		throw new Error("The CJS version of this module does not support the import statement");
+		throw new Error("The CJS version of heatsync does not support the import statement. Use the import statement to import heatsync if heatsync must use the import statement in the backend");
 	}
 
+	/**
+	 * Adds a listener to an EventEmitter that will get removed if and when the file that is calling this method is reloaded.
+	 */
 	public addTemporaryListener<Target extends EventEmitter>(target: Target, event: Parameters<Target["on"]>[0], callback: (...args: Array<any>) => any, method: "on" | "once" = "on") {
 		if (typeof target?.[method] !== "function") throw new TypeError(`${target?.constructor?.name ?? typeof target} does not include the method "${method}". It may not implement/extend or only partially implements/extends an EventEmitter`);
 		const first = getStack().first()!;
@@ -129,6 +99,9 @@ class Sync {
 		return target;
 	}
 
+	/**
+	 * Sets a Timeout that will get cancelled if and when the file that is calling this method is reloaded.
+	 */
 	public addTemporaryTimeout(callback: () => void, ms?: number): NodeJS.Timeout;
 	public addTemporaryTimeout<TArgs extends any[]>(callback: (...args: TArgs) => void, ms?: number, ...args: TArgs): NodeJS.Timeout
 	public addTemporaryTimeout<TArgs extends any[]>(callback: (...args: TArgs) => void, ms?: number, ...args: TArgs): NodeJS.Timeout {
@@ -140,6 +113,9 @@ class Sync {
 		return timer;
 	}
 
+	/**
+	 * Sets an Interval that will get cancelled if and when the file that is calling this method is reloaded.
+	 */
 	public addTemporaryInterval(callback: () => void, ms?: number): NodeJS.Timeout;
 	public addTemporaryInterval<TArgs extends any[]>(callback: (...args: TArgs) => void, ms?: number, ...args: TArgs): NodeJS.Timeout
 	public addTemporaryInterval<TArgs extends any[]>(callback: (...args: TArgs) => void, ms?: number, ...args: TArgs): NodeJS.Timeout {
@@ -151,6 +127,9 @@ class Sync {
 		return timer;
 	}
 
+	/**
+	 * Forces a file to reload if you need it to reload when not using watchFS, if the file hasn't been loaded by heatsync, or you need it to reload faster than Node polls the filesystem if on a platform that doesn't support event based file modifications.
+	 */
 	public resync(id: string): any;
 	public resync(id: Array<string>): any;
 	public resync(id: string, _from?: string): any;
@@ -162,8 +141,79 @@ class Sync {
 		if (Array.isArray(id)) return id.map(item => this.resync(item, from));
 		const directory = !path.isAbsolute(id) ? require.resolve(path.join(from, id)) : require.resolve(id);
 		if (directory === __filename) throw new Error(selfReloadError);
+
+		this._watchers.get(directory)?.close(); // close it in case the intent was to reload the file faster than an existing watcher that was active if it was polling.
+		this._watchers.delete(directory);
+
+		const result = this._watchFunctionCallback(directory);
+
+		if (result === failedSymbol) throw new Error("Module failed to resync");
+
+		if (this._options.watchFS && !this._watchers.has(directory)) this._watchFile(directory);
+
+		return result;
+	}
+
+	/**
+	 * Stores variables heatsync should remember and be able to restore to reloaded files. Variables are scope locked to the file this function was called from.
+	 * You should avoid using the same keys, especially when using tooling that bundles multiple files into one, unless you know what you're doing!
+	 * If source maps are included and being loaded for the file, you can use the same keys across multiple files, but still proceed with caution!
+	 */
+	public remember<T>(key: string, getter: () => T): T {
+		const first = getStack().first()!.srcAbsolute;
+
+		key = `${first}$${key}`
+
+		if (this._remembered.has(key)) return this._remembered.get(key);
+
+		const value = getter();
+		this._remembered.set(key, value);
+		return value;
+	}
+
+
+	private _watchFile(directory: string): void {
+		let timer: NodeJS.Timeout | null = null;
+
+		this._watchers.set(
+			directory,
+			this._options.watchFunction(directory, { persistent: this._options.persistentWatchers }, () => {
+				if (timer) {
+					clearTimeout(timer);
+					timer = null;
+				}
+
+				timer = setTimeout(() => this._watchFunctionCallback(directory), 1000).unref();
+			})
+		);
+	}
+
+	private _watchFunctionCallback(directory: string): any {
 		delete require.cache[directory];
-		return this.require(directory);
+		this.events.emit(directory);
+		this.events.emit("any", directory);
+
+		const listeners = this._listeners.get(directory);
+		if (listeners) {
+			for (const [target, event, func] of listeners) {
+				target.removeListener(event, func);
+			}
+		}
+
+		const timers = this._timers.get(directory);
+		if (timers) {
+			for (const [type, timer] of timers) {
+				if (type === "timeout") clearTimeout(timer);
+				else clearInterval(timer);
+			}
+		}
+
+		try {
+			this.require(directory);
+		} catch (e) {
+			this.events.emit("error", e);
+			return failedSymbol;
+		}
 	}
 }
 
