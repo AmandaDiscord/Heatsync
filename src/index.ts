@@ -159,7 +159,7 @@ class Sync {
 	 * You should avoid using the same keys, especially when using tooling that bundles multiple files into one, unless you know what you're doing!
 	 * If source maps are included and being loaded for the file, you can use the same keys across multiple files, but still proceed with caution!
 	 */
-	public remember<T>(key: string, getter: () => T): T {
+	public remember<T>(getter: () => T, key: string): T {
 		const first = getStack().first()!.srcAbsolute;
 
 		key = `${first}$${key}`

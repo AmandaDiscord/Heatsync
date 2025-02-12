@@ -209,11 +209,11 @@ class Sync {
 
 	/**
 	 * @template T
-	 * @param {string} key
 	 * @param {() => T} getter
+	 * @param {string} key
 	 * @returns {Promise<T>}
 	 */
-	async remember(key, getter) {
+	async remember(getter, key) {
 		// @ts-expect-error
 		let first = getStack().first().srcAbsolute.replace(refreshRegex, "");
 		if (first.startsWith("file://")) first = url.fileURLToPath(first);
