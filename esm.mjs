@@ -64,7 +64,9 @@ class Sync {
 				const key = `${first.srcAbsolute}:${this.constructor.name}`;
 				if (!sync._reloadableInstances.has(key)) sync._reloadableInstances.set(key, new Set());
 				const ref = new WeakRef(this);
-				sync._reloadableInstances.get(key).add(ref);
+				const set = sync._reloadableInstances.get(key);
+				assert(set);
+				set.add(ref);
 				sync._reloadableInstancesRegistry.register(this, {key, ref});
 			}
 		}
