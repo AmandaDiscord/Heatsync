@@ -14,6 +14,7 @@ function isObject(item) {
 }
 
 /** @typedef {(path: string, options: fs.WatchFileOptions & { bigint?: false }, cb: (...args: any[]) => any) => any} WatchFunction */
+/** @typedef {abstract new (...args: any) => any} Class */
 
 class Sync {
 	/**
@@ -49,6 +50,17 @@ class Sync {
 		this._timers = new Map();
 		/** @type {Map<string, any>} */
 		this._remembered = new Map();
+
+		const sync = this;
+		this.ReloadableClass = class ReloadableClass {
+			constructor() {
+				const first = getStack().first();
+				const key = `${first.srcAbsolute}:${this.constructor.name}`
+				if (!sync._reloadableInstances.has(key)) sync._reloadableInstances.set(key, [])
+				const ref = new WeakRef(this)
+				sync._reloadableInstances.get(key).push(ref)
+			}
+		}
 	}
 
 	/**
@@ -210,16 +222,36 @@ class Sync {
 	/**
 	 * @template T
 	 * @param {() => T} getter
-	 * @param {string} key
+	 * @param {string} [key]
 	 * @returns {Promise<T>}
 	 */
 	async remember(getter, key) {
 		// @ts-expect-error
-		let first = getStack().first().srcAbsolute.replace(refreshRegex, "");
-		if (first.startsWith("file://")) first = url.fileURLToPath(first);
-		first = path.normalize(first);
+		const first = getStack().first()
+		let firstSrc = first.srcAbsolute.replace(refreshRegex, "");
+		if (firstSrc.startsWith("file://")) firstSrc = url.fileURLToPath(firstSrc);
+		firstSrc = path.normalize(firstSrc);
 
-		key = `${first}$${key}`
+		if (!key) {
+			const content = fs.readFileSync(firstSrc, {encoding: "utf8"});
+			const lines = content.split("\n");
+			const line = lines[first.srcLine - 1];
+			const variableMatches = [...line.matchAll(/([a-zA-Z0-9_$.]+) *[=:]/g)];
+			// If there are multiple calls to .remember on the same line, rememberFunctionCallColumn is the column of THIS function call, but multiple variables might match the regexp.
+			// The closest variable to the function call (without going past it) is the correct variable to use.
+			// So we just look for the last match that's before this function call.
+			const rememberFunctionCallColumn = first.srcColumn - 1;
+			const lastMatch = variableMatches.findLast(match => match.index < rememberFunctionCallColumn);
+			if (!lastMatch) {
+				throw new Error(
+					`Sorry, couldn't parse out the variable name from the line where you used sync.remember. Please provide a key as the second argument instead!`
+					+ `\n  > ${first.srcLine} | ${line}\n`
+				);
+			}
+			key = lastMatch[1];
+		}
+
+		key = `${firstSrc}:${key}`;
 
 		if (this._remembered.has(key)) return this._remembered.get(key);
 
@@ -227,7 +259,6 @@ class Sync {
 		this._remembered.set(key, value);
 		return value;
 	}
-
 
 	/**
 	 * @param {string} directory
@@ -310,6 +341,26 @@ class Sync {
 		}
 		await fs.promises.access(absolute, fs.constants.R_OK);
 		return absolute;
+	}
+
+	/**
+	 * @param {Class} loadedClass
+	 */
+	reloadClassMethods(loadedClass) {
+		const first = getStack().first();
+		const key = `${first.srcAbsolute}:${loadedClass.name}`;
+
+		if (Object.getPrototypeOf(loadedClass) !== this.ReloadableClass) {
+			throw new Error(`You tried to reload class ${key}, but it needs to \`extend sync.ReloadableClass\` (directly) for that to work.`);
+		}
+
+		if (!this._reloadableInstances.has(key)) return;
+
+		for (const ref of this._reloadableInstances.get(key)) {
+			const object = ref.deref();
+			if (!object) continue;
+			Object.setPrototypeOf(object, loadedClass.prototype);
+		}
 	}
 }
 
