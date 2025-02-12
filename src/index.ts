@@ -7,7 +7,7 @@ const selfReloadError = "Do not attempt to re-require Heatsync. If you REALLY wa
 const failedSymbol = Symbol("LOADING_MODULE_FAILED");
 
 function isObject(item: any) {
-	if (typeof item !== "object" || item === null || Array.isArray(item)) return false
+	if (typeof item !== "object" || item === null || Array.isArray(item)) return false;
 	return (item.constructor?.name === "Object");
 }
 
@@ -15,18 +15,22 @@ function isObject(item: any) {
  * This will be fs.watch or fs.watchFile
  */
 type WatchFunction = (path: string, options: fs.WatchFileOptions & { bigint?: false }, cb: (...args: any[]) => any) => any;
+type Class = abstract new (...args: any) => any;
 
 class Sync {
 	/**
 	 * An EventEmitter which emits absolute reloaded file paths.
 	 */
 	public events = new EventEmitter();
+	public ReloadableClass: Class;
 
 	private readonly _listeners = new Map<string, Array<[EventEmitter, string, (...args: Array<any>) => any]>>();
 	private readonly _timers = new Map<string, Array<["timeout" | "interval", NodeJS.Timeout]>>();
 	private readonly _remembered = new Map<string, any>();
 	private readonly _references = new Map<string, any>();
 	private readonly _watchers = new Map<string, import("fs").FSWatcher>();
+	private readonly _reloadableInstances: Map<string, Set<WeakRef<any>>> = new Map();
+	private readonly _reloadableInstancesRegistry: FinalizationRegistry<{key: string, ref: WeakRef<any>}>;
 
 	private readonly _options: { watchFS: boolean; persistentWatchers: boolean; watchFunction: WatchFunction } = {} as typeof this._options;
 
@@ -37,6 +41,20 @@ class Sync {
 		else this._options.persistentWatchers = options.persistentWatchers ?? false;
 		if (options?.watchFunction === undefined) this._options.watchFunction = fs.watch;
 		else this._options.watchFunction = options.watchFunction;
+
+		const sync = this;
+		this.ReloadableClass = class ReloadableClass {
+			constructor() {
+				const first = getStack().first()!;
+				const key = `${first.srcAbsolute}:${this.constructor.name}`;
+				if (!sync._reloadableInstances.has(key)) sync._reloadableInstances.set(key, new Set());
+				const ref = new WeakRef(this);
+				sync._reloadableInstances.get(key)!.add(ref);
+				sync._reloadableInstancesRegistry.register(this, {key, ref});
+			}
+		}
+
+		this._reloadableInstancesRegistry = new FinalizationRegistry(({key, ref}) => this._reloadableInstances.get(key)?.delete(ref));
 	}
 
 	/**
@@ -159,10 +177,34 @@ class Sync {
 	 * You should avoid using the same keys, especially when using tooling that bundles multiple files into one, unless you know what you're doing!
 	 * If source maps are included and being loaded for the file, you can use the same keys across multiple files, but still proceed with caution!
 	 */
-	public remember<T>(getter: () => T, key: string): T {
-		const first = getStack().first()!.srcAbsolute;
+	public remember<T>(getter: () => T, key?: string): T {
+		const first = getStack().first()!;
 
-		key = `${first}$${key}`
+		if (!key) {
+			const path = first.srcAbsolute;
+			const content = fs.readFileSync(path, {encoding: "utf8"});
+			const lines = content.split("\n");
+			const line = lines[first.srcLine - 1];
+			let variableMatches = [...line.matchAll(/([a-zA-Z0-9_$.]+) *[=:]/g)];
+			// This will match the following: const a: string = sync.remember(() => "a")
+			// Like so:                             0^ 1^^^^^^^
+			// So it matches types as well as variable names if we're in TypeScript world. Can't fix this with regex. Need to trim it with code.
+			variableMatches = variableMatches.filter(match => line[match.index - 2] !== ":");
+			// If there are multiple calls to .remember on the same line, rememberFunctionCallColumn is the column of THIS function call, but multiple variables might match the regexp.
+			// The closest variable to the function call (without going past it) is the correct variable to use.
+			// So we just look for the last match that's before this function call.
+			const rememberFunctionCallColumn = first.srcColumn - 1;
+			const lastMatch = variableMatches.filter(match => match.index < rememberFunctionCallColumn).slice(-1)[0];
+			if (!lastMatch) {
+				throw new Error(
+					`Sorry, couldn't parse out the variable name from the line where you used sync.remember. Please provide a key as the second argument instead!`
+					+ `\n  > ${first.srcLine} | ${line}\n`
+				);
+			}
+			key = lastMatch[1];
+		}
+
+		key = `${first.srcAbsolute}:${key}`;
 
 		if (this._remembered.has(key)) return this._remembered.get(key);
 
@@ -213,6 +255,22 @@ class Sync {
 		} catch (e) {
 			this.events.emit("error", e);
 			return failedSymbol;
+		}
+	}
+
+	public reloadClassMethods(loadedClass: Class): void {
+		const first = getStack().first()!;
+		const key = `${first.srcAbsolute}:${loadedClass.name}`;
+
+		if (Object.getPrototypeOf(loadedClass) !== this.ReloadableClass) throw new Error(`You tried to reload class ${key}, but it needs to \`extend sync.ReloadableClass\` (directly) for that to work.`);
+
+		if (!this._reloadableInstances.has(key)) return;
+
+		const refs = this._reloadableInstances.get(key)!;
+		for (const ref of refs) {
+			const object = ref.deref();
+			if (!object) continue;
+			Object.setPrototypeOf(object, loadedClass.prototype);
 		}
 	}
 }
