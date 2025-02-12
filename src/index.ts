@@ -7,7 +7,7 @@ const selfReloadError = "Do not attempt to re-require Heatsync. If you REALLY wa
 const failedSymbol = Symbol("LOADING_MODULE_FAILED");
 
 function isObject(item: any) {
-	if (typeof item !== "object" || item === null || Array.isArray(item)) return false
+	if (typeof item !== "object" || item === null || Array.isArray(item)) return false;
 	return (item.constructor?.name === "Object");
 }
 
@@ -42,7 +42,7 @@ class Sync {
 		if (options?.watchFunction === undefined) this._options.watchFunction = fs.watch;
 		else this._options.watchFunction = options.watchFunction;
 
-		let sync = this
+		const sync = this;
 		this.ReloadableClass = class ReloadableClass {
 			constructor() {
 				const first = getStack().first()!;
@@ -54,9 +54,7 @@ class Sync {
 			}
 		}
 
-		this._reloadableInstancesRegistry = new FinalizationRegistry(({key, ref}) => {
-			this._reloadableInstances.get(key)?.delete(ref);
-		});
+		this._reloadableInstancesRegistry = new FinalizationRegistry(({key, ref}) => this._reloadableInstances.get(key)?.delete(ref));
 	}
 
 	/**
@@ -264,13 +262,11 @@ class Sync {
 		const first = getStack().first()!;
 		const key = `${first.srcAbsolute}:${loadedClass.name}`;
 
-		if (Object.getPrototypeOf(loadedClass) !== this.ReloadableClass) {
-			throw new Error(`You tried to reload class ${key}, but it needs to \`extend sync.ReloadableClass\` (directly) for that to work.`);
-		}
+		if (Object.getPrototypeOf(loadedClass) !== this.ReloadableClass) throw new Error(`You tried to reload class ${key}, but it needs to \`extend sync.ReloadableClass\` (directly) for that to work.`);
 
 		if (!this._reloadableInstances.has(key)) return;
 
-		const refs = this._reloadableInstances.get(key)!
+		const refs = this._reloadableInstances.get(key)!;
 		for (const ref of refs) {
 			const object = ref.deref();
 			if (!object) continue;
