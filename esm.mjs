@@ -12,7 +12,7 @@ const refreshRegex = /(\?refresh=\d+)/;
 const failedSymbol = Symbol("LOADING_MODULE_FAILED");
 
 function isObject(item) {
-	if (typeof item !== "object" || item === null || Array.isArray(item)) return false
+	if (typeof item !== "object" || item === null || Array.isArray(item)) return false;
 	return (item.constructor?.name === "Object");
 }
 
@@ -69,9 +69,7 @@ class Sync {
 			}
 		}
 
-		this._reloadableInstancesRegistry = new FinalizationRegistry(({key, ref}) => {
-			this._reloadableInstances.get(key)?.delete(ref);
-		});
+		this._reloadableInstancesRegistry = new FinalizationRegistry(({key, ref}) => this._reloadableInstances.get(key)?.delete(ref));
 	}
 
 	/**
@@ -362,9 +360,7 @@ class Sync {
 		assert(first);
 		const key = `${first.srcAbsolute}:${loadedClass.name}`;
 
-		if (Object.getPrototypeOf(loadedClass) !== this.ReloadableClass) {
-			throw new Error(`You tried to reload class ${key}, but it needs to \`extend sync.ReloadableClass\` (directly) for that to work.`);
-		}
+		if (Object.getPrototypeOf(loadedClass) !== this.ReloadableClass) throw new Error(`You tried to reload class ${key}, but it needs to \`extend sync.ReloadableClass\` (directly) for that to work.`);
 
 		for (const ref of this._reloadableInstances.get(key) ?? []) {
 			const object = ref.deref();
