@@ -29,7 +29,8 @@ class Sync {
 	private readonly _remembered = new Map<string, any>();
 	private readonly _references = new Map<string, any>();
 	private readonly _watchers = new Map<string, import("fs").FSWatcher>();
-	private readonly _reloadableInstances: Map<string, WeakRef<any>[]> = new Map();
+	private readonly _reloadableInstances: Map<string, Set<WeakRef<any>>> = new Map();
+	private readonly _reloadableInstancesRegistry: FinalizationRegistry<{key: string, ref: WeakRef<any>}>;
 
 	private readonly _options: { watchFS: boolean; persistentWatchers: boolean; watchFunction: WatchFunction } = {} as typeof this._options;
 
@@ -45,12 +46,17 @@ class Sync {
 		this.ReloadableClass = class ReloadableClass {
 			constructor() {
 				const first = getStack().first()!;
-				const key = `${first.srcAbsolute}:${this.constructor.name}`
-				if (!sync._reloadableInstances.has(key)) sync._reloadableInstances.set(key, [])
-				const ref = new WeakRef(this)
-				sync._reloadableInstances.get(key)!.push(ref)
+				const key = `${first.srcAbsolute}:${this.constructor.name}`;
+				if (!sync._reloadableInstances.has(key)) sync._reloadableInstances.set(key, new Set());
+				const ref = new WeakRef(this);
+				sync._reloadableInstances.get(key)!.add(ref);
+				sync._reloadableInstancesRegistry.register(this, {key, ref});
 			}
 		}
+
+		this._reloadableInstancesRegistry = new FinalizationRegistry(({key, ref}) => {
+			this._reloadableInstances.get(key)?.delete(ref);
+		});
 	}
 
 	/**
@@ -190,7 +196,7 @@ class Sync {
 			// The closest variable to the function call (without going past it) is the correct variable to use.
 			// So we just look for the last match that's before this function call.
 			const rememberFunctionCallColumn = first.srcColumn - 1;
-			const lastMatch = variableMatches.findLast(match => match.index < rememberFunctionCallColumn);
+			const lastMatch = variableMatches.filter(match => match.index < rememberFunctionCallColumn).slice(-1)[0];
 			if (!lastMatch) {
 				throw new Error(
 					`Sorry, couldn't parse out the variable name from the line where you used sync.remember. Please provide a key as the second argument instead!`
@@ -264,7 +270,8 @@ class Sync {
 
 		if (!this._reloadableInstances.has(key)) return;
 
-		for (const ref of this._reloadableInstances.get(key)!) {
+		const refs = this._reloadableInstances.get(key)!
+		for (const ref of refs) {
 			const object = ref.deref();
 			if (!object) continue;
 			Object.setPrototypeOf(object, loadedClass.prototype);

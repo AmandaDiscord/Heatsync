@@ -1,8 +1,11 @@
+// @ts-check
+
 import fs from "fs";
 import path from "path";
 import url from "url";
 import { EventEmitter } from "events";
 import { getStack } from "backtracker";
+import assert from "assert";
 
 const selfReloadError = "Do not attempt to re-require Heatsync. If you REALLY want to, do it yourself with require.cache and deal with possibly ticking timers and event listeners, but don't complain if something breaks :(";
 const refreshRegex = /(\?refresh=\d+)/;
@@ -50,17 +53,25 @@ class Sync {
 		this._timers = new Map();
 		/** @type {Map<string, any>} */
 		this._remembered = new Map();
+		/** @type {Map<string, Set<WeakRef<any>>>} */
+		this._reloadableInstances = new Map();
 
 		const sync = this;
 		this.ReloadableClass = class ReloadableClass {
 			constructor() {
 				const first = getStack().first();
-				const key = `${first.srcAbsolute}:${this.constructor.name}`
-				if (!sync._reloadableInstances.has(key)) sync._reloadableInstances.set(key, [])
-				const ref = new WeakRef(this)
-				sync._reloadableInstances.get(key).push(ref)
+				assert(first);
+				const key = `${first.srcAbsolute}:${this.constructor.name}`;
+				if (!sync._reloadableInstances.has(key)) sync._reloadableInstances.set(key, new Set());
+				const ref = new WeakRef(this);
+				sync._reloadableInstances.get(key).add(ref);
+				sync._reloadableInstancesRegistry.register(this, {key, ref});
 			}
 		}
+
+		this._reloadableInstancesRegistry = new FinalizationRegistry(({key, ref}) => {
+			this._reloadableInstances.get(key)?.delete(ref);
+		});
 	}
 
 	/**
@@ -226,8 +237,8 @@ class Sync {
 	 * @returns {Promise<T>}
 	 */
 	async remember(getter, key) {
-		// @ts-expect-error
-		const first = getStack().first()
+		const first = getStack().first();
+		assert(first);
 		let firstSrc = first.srcAbsolute.replace(refreshRegex, "");
 		if (firstSrc.startsWith("file://")) firstSrc = url.fileURLToPath(firstSrc);
 		firstSrc = path.normalize(firstSrc);
@@ -241,7 +252,7 @@ class Sync {
 			// The closest variable to the function call (without going past it) is the correct variable to use.
 			// So we just look for the last match that's before this function call.
 			const rememberFunctionCallColumn = first.srcColumn - 1;
-			const lastMatch = variableMatches.findLast(match => match.index < rememberFunctionCallColumn);
+			const lastMatch = variableMatches.filter(match => match.index < rememberFunctionCallColumn).slice(-1)[0];
 			if (!lastMatch) {
 				throw new Error(
 					`Sorry, couldn't parse out the variable name from the line where you used sync.remember. Please provide a key as the second argument instead!`
@@ -348,15 +359,14 @@ class Sync {
 	 */
 	reloadClassMethods(loadedClass) {
 		const first = getStack().first();
+		assert(first);
 		const key = `${first.srcAbsolute}:${loadedClass.name}`;
 
 		if (Object.getPrototypeOf(loadedClass) !== this.ReloadableClass) {
 			throw new Error(`You tried to reload class ${key}, but it needs to \`extend sync.ReloadableClass\` (directly) for that to work.`);
 		}
 
-		if (!this._reloadableInstances.has(key)) return;
-
-		for (const ref of this._reloadableInstances.get(key)) {
+		for (const ref of this._reloadableInstances.get(key) ?? []) {
 			const object = ref.deref();
 			if (!object) continue;
 			Object.setPrototypeOf(object, loadedClass.prototype);
