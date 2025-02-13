@@ -11,6 +11,7 @@ const selfReloadError = "Do not attempt to re-require Heatsync. If you REALLY wa
 const refreshRegex = /(\?refresh=\d+)/;
 const failedSymbol = Symbol("LOADING_MODULE_FAILED");
 
+/** @param {any} item */
 function isObject(item) {
 	if (typeof item !== "object" || item === null || Array.isArray(item)) return false;
 	return (item.constructor?.name === "Object");
@@ -272,6 +273,23 @@ class Sync {
 	}
 
 	/**
+	 * @param {Class} loadedClass
+	 */
+	reloadClassMethods(loadedClass) {
+		const first = getStack().first();
+		assert(first);
+		const key = `${first.srcAbsolute}:${loadedClass.name}`;
+
+		if (Object.getPrototypeOf(loadedClass) !== this.ReloadableClass) throw new Error(`You tried to reload class ${key}, but it needs to \`extend sync.ReloadableClass\` (directly) for that to work.`);
+
+		for (const ref of this._reloadableInstances.get(key) ?? []) {
+			const object = ref.deref();
+			if (!object) continue;
+			Object.setPrototypeOf(object, loadedClass.prototype);
+		}
+	}
+
+	/**
 	 * @param {string} directory
 	 * @returns {void}
 	 * @private
@@ -352,23 +370,6 @@ class Sync {
 		}
 		await fs.promises.access(absolute, fs.constants.R_OK);
 		return absolute;
-	}
-
-	/**
-	 * @param {Class} loadedClass
-	 */
-	reloadClassMethods(loadedClass) {
-		const first = getStack().first();
-		assert(first);
-		const key = `${first.srcAbsolute}:${loadedClass.name}`;
-
-		if (Object.getPrototypeOf(loadedClass) !== this.ReloadableClass) throw new Error(`You tried to reload class ${key}, but it needs to \`extend sync.ReloadableClass\` (directly) for that to work.`);
-
-		for (const ref of this._reloadableInstances.get(key) ?? []) {
-			const object = ref.deref();
-			if (!object) continue;
-			Object.setPrototypeOf(object, loadedClass.prototype);
-		}
 	}
 }
 
