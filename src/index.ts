@@ -246,7 +246,7 @@ class Sync {
 	 * The limitations of this system are that the class cannot move between files and its name cannot change. If you need to do this, restart your process.
 	 * Only weak references to instances are held, so they can be garbage collected normally.
 	 *
-	 * *We are considering allowing child classes to be reloadable, but are currently face engineering challenges.
+	 * *We are considering allowing deep class hierarchies to be reloadable, but are currently face engineering challenges.
 	 *
 	 * @example
 	 * const Sync = require("heatsync");
@@ -254,32 +254,45 @@ class Sync {
 	 *
 	 * class ThisCanReloadMethods extends sync.ReloadableClass { // works
 	 * 	constructor() {
-	 * 		this.hello = "HI HI HI!";
+	 * 		this.hello = Math.random(); // constructor and fields won't change on existing instances
 	 * 	}
 	 *
 	 * 	magic() {
-	 * 		console.log(this.hello + " 1");
+	 * 		console.log(this.hello + " 1"); // changes to methods will be reloaded on existing instances
 	 * 	}
 	 * }
 	 * sync.reloadClassMethods(ThisCanReloadMethods);
-	 *
+	 * @example
+	 * class ThisCanAlsoReload extends sync.reloadClassMethods(() => ThisCanAlsoReload) { // works
+	 * 	constructor() { ... }
+	 *    magic() { ... }
+	 * }
+	 * // doesn't need a follow-up function call
+	 * @example
 	 * class ThisWontWork extends ThisCanReloadMethods {} // doesn't directly extend sync.ReloadableClass. Won't work
 	 * sync.reloadClassMethods(ThisWontWork); // Throws an error about not directly extending.
 	 */
-	public reloadClassMethods(loadedClass: Class): void {
+	public reloadClassMethods(loadedClass: Class | (() => Class | any)): Class {
 		const first = getStack().first()!;
-		const key = `${first.srcAbsolute}:${loadedClass.name}`;
+		const abs = first.srcAbsolute;
 
-		if (Object.getPrototypeOf(loadedClass) !== this.ReloadableClass) throw new Error(`You tried to reload class ${key}, but it needs to \`extend sync.ReloadableClass\` (directly) for that to work.`);
+		const loadClass = loadedClass => {
+			const key = `${abs}:${loadedClass.name}`;
 
-		if (!this._reloadableInstances.has(key)) return;
+			if (Object.getPrototypeOf(loadedClass) !== this.ReloadableClass) throw new Error(`You tried to reload class ${key}, but it needs to \`extend sync.ReloadableClass\` (directly) for that to work.`);
 
-		const refs = this._reloadableInstances.get(key)!;
-		for (const ref of refs) {
-			const object = ref.deref();
-			if (!object) continue;
-			Object.setPrototypeOf(object, loadedClass.prototype);
+			for (const ref of this._reloadableInstances.get(key) ?? []) {
+				const object = ref.deref();
+				if (!object) continue;
+				Object.setPrototypeOf(object, loadedClass.prototype);
+			}
 		}
+
+		if ("prototype" in loadedClass) loadClass(loadedClass); // passed a class - load it
+		// @ts-ignore
+		else setImmediate(() => loadClass(loadedClass())); // passed a function - need to wait before we call it so that the reference is resolvable
+
+		return this.ReloadableClass;
 	}
 
 
