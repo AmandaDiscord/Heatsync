@@ -273,20 +273,30 @@ class Sync {
 	}
 
 	/**
-	 * @param {Class} loadedClass
+	 * @param {Class | (() => Class | any)} loadedClass
 	 */
 	reloadClassMethods(loadedClass) {
 		const first = getStack().first();
 		assert(first);
-		const key = `${first.srcAbsolute}:${loadedClass.name}`;
+		const abs = first.srcAbsolute;
 
-		if (Object.getPrototypeOf(loadedClass) !== this.ReloadableClass) throw new Error(`You tried to reload class ${key}, but it needs to \`extend sync.ReloadableClass\` (directly) for that to work.`);
+		const loadClass = loadedClass => {
+			const key = `${abs}:${loadedClass.name}`;
 
-		for (const ref of this._reloadableInstances.get(key) ?? []) {
-			const object = ref.deref();
-			if (!object) continue;
-			Object.setPrototypeOf(object, loadedClass.prototype);
+			if (Object.getPrototypeOf(loadedClass) !== this.ReloadableClass) throw new Error(`You tried to reload class ${key}, but it needs to \`extend sync.ReloadableClass\` (directly) for that to work.`);
+
+			for (const ref of this._reloadableInstances.get(key) ?? []) {
+				const object = ref.deref();
+				if (!object) continue;
+				Object.setPrototypeOf(object, loadedClass.prototype);
+			}
 		}
+
+		if ("prototype" in loadedClass) loadClass(loadedClass); // passed a class - load it
+		// @ts-expect-error
+		else setImmediate(() => loadClass(loadedClass())); // passed a function - need to wait before we call it so that the reference is resolvable
+
+		return this.ReloadableClass;
 	}
 
 	/**
