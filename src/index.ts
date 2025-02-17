@@ -289,7 +289,7 @@ class Sync {
 		}
 
 		if ("prototype" in loadedClass) loadClass(loadedClass); // passed a class - load it
-		// @ts-ignore
+		// @ts-expect-error
 		else setImmediate(() => loadClass(loadedClass())); // passed a function - need to wait before we call it so that the reference is resolvable
 
 		return this.ReloadableClass;
