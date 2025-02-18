@@ -68,11 +68,11 @@ class Sync {
 				const set = sync._reloadableInstances.get(key);
 				assert(set);
 				set.add(ref);
-				sync._reloadableInstancesRegistry.register(this, {key, ref});
+				sync._reloadableInstancesRegistry.register(this, { key, ref });
 			}
 		}
 
-		this._reloadableInstancesRegistry = new FinalizationRegistry(({key, ref}) => this._reloadableInstances.get(key)?.delete(ref));
+		this._reloadableInstancesRegistry = new FinalizationRegistry(({ key, ref }) => this._reloadableInstances.get(key)?.delete(ref));
 	}
 
 	/**
@@ -245,7 +245,7 @@ class Sync {
 		firstSrc = path.normalize(firstSrc);
 
 		if (!key) {
-			const content = fs.readFileSync(firstSrc, {encoding: "utf8"});
+			const content = fs.readFileSync(firstSrc, { encoding: "utf8" });
 			const lines = content.split("\n");
 			const line = lines[first.srcLine - 1];
 			const variableMatches = [...line.matchAll(/([a-zA-Z0-9_$.]+) *[=:]/g)];

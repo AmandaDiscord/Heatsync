@@ -34,7 +34,7 @@ class Sync {
 	private readonly _references = new Map<string, any>();
 	private readonly _watchers = new Map<string, import("fs").FSWatcher>();
 	private readonly _reloadableInstances: Map<string, Set<WeakRef<any>>> = new Map();
-	private readonly _reloadableInstancesRegistry: FinalizationRegistry<{key: string, ref: WeakRef<any>}>;
+	private readonly _reloadableInstancesRegistry: FinalizationRegistry<{ key: string, ref: WeakRef<any> }>;
 
 	private readonly _options: { watchFS: boolean; persistentWatchers: boolean; watchFunction: WatchFunction } = {} as typeof this._options;
 
@@ -54,11 +54,11 @@ class Sync {
 				if (!sync._reloadableInstances.has(key)) sync._reloadableInstances.set(key, new Set());
 				const ref = new WeakRef(this);
 				sync._reloadableInstances.get(key)!.add(ref);
-				sync._reloadableInstancesRegistry.register(this, {key, ref});
+				sync._reloadableInstancesRegistry.register(this, { key, ref });
 			}
 		}
 
-		this._reloadableInstancesRegistry = new FinalizationRegistry(({key, ref}) => this._reloadableInstances.get(key)?.delete(ref));
+		this._reloadableInstancesRegistry = new FinalizationRegistry(({ key, ref }) => this._reloadableInstances.get(key)?.delete(ref));
 	}
 
 	/**
@@ -207,7 +207,7 @@ class Sync {
 
 		if (!key) {
 			const path = first.srcAbsolute;
-			const content = fs.readFileSync(path, {encoding: "utf8"});
+			const content = fs.readFileSync(path, { encoding: "utf8" });
 			const lines = content.split("\n");
 			const line = lines[first.srcLine - 1];
 			let variableMatches = [...line.matchAll(/([a-zA-Z0-9_$.]+) *[=:]/g)];
