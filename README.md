@@ -4,11 +4,14 @@ This is a module to watch and reload CommonJS and ES Modules on modification and
 In applications which require high uptime and are constantly being worked on as the development process normally is, developers might find it necessary to reload modules and have their changes take effect immediately without restarting the application. Luckily, that's where Heatsync comes in.
 
 # How it works and Caveats
-Objects. HeatSync only supports importing modules that export an Object.
-Objects are a list of references and on file change, all of the properties of the old imported Object are deleted so that they can be garbage collected and then repopulated with references of the new Object when HeatSync re-imports the module. The result is that the return value from sync.require or sync.import will have it's child references updated and these changes are available without a restart. All imports of the same module through HeatSync share the same Object reference as if it was imported natively.
+Objects. HeatSync only supports importing modules that export an Object.*
+Objects are a list of references and on file change, all of the properties of the old imported Object are deleted so that they can be garbage collected and then repopulated with references from the new Object when HeatSync re-imports the module.** The result is that the return value from sync.require or sync.import will have its properties updated and these changes are available without a restart. All imports of the same module through HeatSync share the same Object reference as if it were imported natively.
 
-All other types in JS are essentially immutable and this logic does not hold up for them nor can their values be changed (aside from numbers through operators which do assignment). Arrays are considered Objects and theoretically could be supported by HeatSync, but users can do unsafe reassignment of the exports to something other than another Array and cannot be iterated over properly as with Objects. As such, only Objects are supported. Everything else will refuse to load/reload. Classes are Objects, but testing has shown that deleting all of the properties of the class and then repopulating them does not work. I believe node protects specific properties without throwing an error similar to how ES Modules' default export is readonly, but it's child properties are not. In such a case, you need to export classes wrapped in an Object.
+* Classes can be treated like Objects, but testing has shown that attempting to delete all of the properties of the class and then repopulate them does not work. I believe Node protects specific properties without throwing an error similar to how ES Modules' default export property itself is readonly, but its child properties are not. In cases where you want to export a class and have that file reload, you need to export any classes wrapped in an Object as the export.
 
+** Almost all other primitive types in JS are essentially immutable and this logic does not hold up for them nor can their values be changed (aside from numbers through operators which do assignment and Arrays). Arrays are considered Objects and theoretically could be supported by HeatSync, but we found it much simpler for both us and the end user to only support pure Objects as exports. Everything else will refuse to load/reload.
+
+## Object.create
 Objects created via Object.create have the possibility to not have a constructor property such as through Object.create(null). HeatSync will throw an Error saying that it is not an Object due to it checking the constructor.name to see if it equals "Object". Should you really desire using Object.create and HeatSync isn't playing nice, you must assign a constructor property and you can reference the global Object.constructor as the value.
 
 # ESM Support
@@ -43,3 +46,10 @@ sync.events.on("error", console.error); // or node will kill your process if the
 
 # Examples
 Code for an example can be found at example/
+
+# Features
+- Require/import specific modules that can be reloaded when the files changes if options.watchFS is true (default: true).
+- Add temporary Timeouts, Intervals, and events to EventEmitters that get removed when the file housing them gets reloaded.
+- Reload modules manually (can be unsafe in specific cases)
+- Remember variable references to be carried over across file reloads
+- Mark classes as reloadable where their instances get their **methods** updated. (You cannot do anything that would be done from within the new constructor)

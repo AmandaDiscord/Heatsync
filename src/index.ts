@@ -160,7 +160,8 @@ class Sync {
 	}
 
 	/**
-	 * Forces a file to reload if you need it to reload when not using watchFS, if the file hasn't been loaded by heatsync,
+	 * Forces a file to reload if you need it to reload when not using watchFS,
+	 * if the file hasn't been loaded by heatsync yet (any references to the file will not be updated),
 	 * or you need it to reload faster than Node polls the filesystem if on a platform that doesn't support event based file modifications.
 	 *
 	 * When heatsync is already watching the file and it updates and you need it to update faster than the fs polling rate, it will cancel the fs watcher,
