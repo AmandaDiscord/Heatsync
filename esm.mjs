@@ -56,6 +56,8 @@ class Sync {
 		this._remembered = new Map();
 		/** @type {Map<string, Set<WeakRef<any>>>} */
 		this._reloadableInstances = new Map();
+		/** @type {Map<string, ImportAttributes>} */
+		this._attributes = new Map()
 
 		const sync = this;
 		this.ReloadableClass = class ReloadableClass {
@@ -86,23 +88,27 @@ class Sync {
 
 	/**
 	 * @param {string | Array<string>} id
+	 * @param {ImportAttributes} [importAttributes]
 	 * @param {string} [_from]
 	 * @returns {Promise<any>}
 	 */
-	async import(id, _from) {
+	async import(id, importAttributes, _from) {
 		/** @type {string} */
 		let from;
 		// @ts-expect-error
 		from = _from ?? getStack().first().dir;
 		if (from.startsWith("file://")) from = url.fileURLToPath(from);
 		from = path.normalize(from);
-		if (Array.isArray(id)) return Promise.all(id.map(item => this.import(item, from)));
+		if (Array.isArray(id)) return Promise.all(id.map(item => this.import(item, importAttributes, from)));
 		let directory = (!path.isAbsolute(id) ? await Sync._resolve(path.join(from, id)) : await Sync._resolve(id));
 		if (directory.startsWith("file://")) directory = url.fileURLToPath(directory);
 		directory = path.normalize(directory);
 		if (this._references.get(directory) && !this._needsrefresh.has(directory)) return this._references.get(directory);
 		if (directory === path.normalize(import.meta.url.startsWith("file://") ? url.fileURLToPath(import.meta.url) : import.meta.url)) throw new Error(selfReloadError);
-		const value = await import(`file://${directory}?refresh=${Date.now()}`); // this busts the internal import cache
+		let value
+		if (importAttributes) value = await import(`file://${directory}?refresh=${Date.now()}`, { with: importAttributes });
+		else value = await import(`file://${directory}?refresh=${Date.now()}`); // this busts the internal import cache
+		if (importAttributes) this._attributes.set(directory, importAttributes);
 		if (!isObject(value)) throw new Error(`${directory} does not seem to export an Object and as such, changes made to the file cannot be reflected as the value would be immutable. Importing through HeatSync isn't supported and may be erraneous. Should the export be an Object made through Object.create, make sure that you reference the export.constructor as the Object.constructor as HeatSync checks constuctor names. Exports being Classes will not reload properly`);
 		this._needsrefresh.delete(directory);
 
@@ -348,7 +354,8 @@ class Sync {
 		}
 
 		try {
-			await this.import(directory);
+			const attribs = this._attributes.get(directory)
+			await this.import(directory, attribs)
 		} catch (e) {
 			this.events.emit("error", e);
 			return failedSymbol;

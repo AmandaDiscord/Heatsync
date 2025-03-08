@@ -35,6 +35,7 @@ class Sync {
 	private readonly _watchers = new Map<string, import("fs").FSWatcher>();
 	private readonly _reloadableInstances: Map<string, Set<WeakRef<any>>> = new Map();
 	private readonly _reloadableInstancesRegistry: FinalizationRegistry<{ key: string, ref: WeakRef<any> }>;
+	private readonly _attributes = new Map<string, ImportAttributes>();
 
 	private readonly _options: { watchFS: boolean; persistentWatchers: boolean; watchFunction: WatchFunction } = {} as typeof this._options;
 
@@ -110,11 +111,11 @@ class Sync {
 	 *
 	 * You will have to type the return value yourself if typings are important to you.
 	 */
-	public import(id: string): Promise<ImportedModule>;
-	public import(id: Array<string>): Promise<Array<ImportedModule>>;
-	public import(id: Array<string>, _from: string): Promise<Array<ImportedModule>>;
-	public import(id: string, _from: string): Promise<ImportedModule>;
-	public import(_id: string | Array<string>, _from?: string): Promise<ImportedModule | Array<ImportedModule>> {
+	public import(id: string, importAttributes?: ImportAttributes): Promise<ImportedModule>;
+	public import(id: Array<string>, importAttributes?: ImportAttributes): Promise<Array<ImportedModule>>;
+	public import(id: Array<string>, importAttributes: ImportAttributes, _from: string): Promise<Array<ImportedModule>>;
+	public import(id: string, importAttributes: ImportAttributes, _from: string): Promise<ImportedModule>;
+	public import(_id: string | Array<string>, _importAttributes?: ImportAttributes, _from?: string): Promise<ImportedModule | Array<ImportedModule>> {
 		throw new Error("The CJS version of heatsync does not support the import statement. Use the import statement to import heatsync if heatsync must use the import statement in the backend");
 	}
 
