@@ -6,11 +6,6 @@ import { getStack } from "backtracker";
 const selfReloadError = "Do not attempt to re-require Heatsync. If you REALLY want to, do it yourself with require.cache and deal with possibly ticking timers and event listeners, but don't complain if something breaks :(";
 const failedSymbol = Symbol("LOADING_MODULE_FAILED");
 
-function isObject(item: any): boolean {
-	if (!objectLike(item)) return false;
-	return (item.constructor?.name === "Object");
-}
-
 function objectLike(item: any): boolean {
 	return typeof item === "object" && item !== null && !Array.isArray(item);
 }
@@ -86,7 +81,7 @@ class Sync {
 		const directory = !path.isAbsolute(id) ? require.resolve(path.join(from, id)) : require.resolve(id);
 		if (directory === __filename) throw new Error(selfReloadError);
 		const value = require(directory);
-		if (!isObject(value)) throw new Error(`${directory} does not export an Object and as such, changes made to the file cannot be reflected as the value would be immutable. Importing through HeatSync isn't supported and may be erraneous`);
+		if (!objectLike(value)) throw new Error(`${directory} does not seem to export an Object and as such, changes made to the file cannot be reflected as the value would be immutable. Importing non Objects through HeatSync isn't supported and may be erraneous. Exports being Classes will not reload properly`);
 
 		const oldObject = this._references.get(directory);
 		if (!oldObject) {
