@@ -181,7 +181,7 @@ class Sync {
 		// @ts-expect-error
 		const timer = setTimeout(callback, ms, ...args);
 		// @ts-expect-error
-		this._timers.get(absolute).push(["timeout", timer]);
+		this._timers.get(first).push(["timeout", timer]);
 		return timer;
 	}
 
@@ -202,7 +202,7 @@ class Sync {
 		// @ts-expect-error
 		const timer = setInterval(callback, ms, ...args);
 		// @ts-expect-error
-		this._timers.get(absolute).push(["interval", timer]);
+		this._timers.get(first).push(["interval", timer]);
 		return timer;
 	}
 
