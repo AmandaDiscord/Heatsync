@@ -115,11 +115,11 @@ class Sync {
 	 *
 	 * You will have to type the return value yourself if typings are important to you.
 	 */
-	public import(id: string, importAttributes?: ImportAttributes): Promise<ImportedModule>;
-	public import(id: Array<string>, importAttributes?: ImportAttributes): Promise<Array<ImportedModule>>;
-	public import(id: Array<string>, importAttributes: ImportAttributes, _from: string): Promise<Array<ImportedModule>>;
-	public import(id: string, importAttributes: ImportAttributes, _from: string): Promise<ImportedModule>;
-	public import(_id: string | Array<string>, _importAttributes?: ImportAttributes, _from?: string): Promise<ImportedModule | Array<ImportedModule>> {
+	public import(id: string, importAttributes?: ImportAttributes): Promise<any>;
+	public import(id: Array<string>, importAttributes?: ImportAttributes): Promise<Array<any>>;
+	public import(id: Array<string>, importAttributes: ImportAttributes, _from: string): Promise<Array<any>>;
+	public import(id: string, importAttributes: ImportAttributes, _from: string): Promise<any>;
+	public import(_id: string | Array<string>, _importAttributes?: ImportAttributes, _from?: string): Promise<any | Array<any>> {
 		throw new Error("The CJS version of heatsync does not support the import statement. Use the import statement to import heatsync if heatsync must use the import statement in the backend");
 	}
 
@@ -345,11 +345,6 @@ class Sync {
 			return failedSymbol;
 		}
 	}
-}
-
-interface ImportedModule {
-	default: any;
-	[key: string | number | symbol]: any;
 }
 
 export = Sync;
