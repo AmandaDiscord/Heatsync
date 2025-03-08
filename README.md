@@ -12,7 +12,7 @@ Objects are a list of references and on file change, all of the properties of th
 \*\* Almost all other primitive types in JS are essentially immutable and this logic does not hold up for them nor can their values be changed (aside from numbers through operators which do assignment and Arrays). Arrays are considered Objects and theoretically could be supported by HeatSync, but we found it much simpler for both us and the end user to only support pure Objects as exports. Everything else will refuse to load/reload.
 
 ## Object.create
-Objects created via Object.create have the possibility to not have a constructor property such as through Object.create(null). HeatSync will throw an Error saying that it is not an Object due to it checking the constructor.name to see if it equals "Object". Should you really desire using Object.create and HeatSync isn't playing nice, you must assign a constructor property and you can reference the global Object.constructor as the value.
+Objects created via Object.create have the possibility to not have a constructor property such as through Object.create(null). HeatSync will throw an Error saying that it is not an Object due to it checking the constructor.name to see if it equals "Object". Should you really desire using Object.create and HeatSync isn't playing nice, you must assign a constructor property and set the name as "Object". Object.constructor will not work as that name evaluates to "Function"
 
 # ESM Support
 ESM support was added in version 2.3.0. For everywhere you see a sync.require, you would use sync.import instead where sync.import is returning:

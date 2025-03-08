@@ -13,8 +13,13 @@ const failedSymbol = Symbol("LOADING_MODULE_FAILED");
 
 /** @param {any} item */
 function isObject(item) {
-	if (typeof item !== "object" || item === null || Array.isArray(item)) return false;
+	if (!objectLike(item)) return false;
 	return (item.constructor?.name === "Object");
+}
+
+/** @param {any} item */
+function objectLike(item) {
+	return typeof item === "object" && item !== null && !Array.isArray(item);
 }
 
 /** @typedef {(path: string, options: fs.WatchFileOptions & { bigint?: false }, cb: (...args: any[]) => any) => any} WatchFunction */
@@ -109,7 +114,12 @@ class Sync {
 		if (importAttributes) value = await import(`file://${directory}?refresh=${Date.now()}`, { with: importAttributes });
 		else value = await import(`file://${directory}?refresh=${Date.now()}`); // this busts the internal import cache
 		if (importAttributes) this._attributes.set(directory, importAttributes);
-		if (!isObject(value)) throw new Error(`${directory} does not seem to export an Object and as such, changes made to the file cannot be reflected as the value would be immutable. Importing through HeatSync isn't supported and may be erraneous. Should the export be an Object made through Object.create, make sure that you reference the export.constructor as the Object.constructor as HeatSync checks constuctor names. Exports being Classes will not reload properly`);
+		const doesntExportObjectError = new Error(`${directory} does not seem to export an Object and as such, changes made to the file cannot be reflected as the value would be immutable. Importing through HeatSync isn't supported and may be erraneous. Should the export be an Object made through Object.create, make sure that you reference the export.constructor as the Object.constructor as HeatSync checks constuctor names. Exports being Classes will not reload properly`);
+		if (importAttributes?.type === "json") {
+			if (!objectLike(value)) throw doesntExportObjectError;
+		} else {
+			if (!isObject(value)) throw doesntExportObjectError;
+		}
 		this._needsrefresh.delete(directory);
 
 		const oldObject = this._references.get(directory);

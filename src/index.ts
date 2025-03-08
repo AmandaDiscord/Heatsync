@@ -6,9 +6,13 @@ import { getStack } from "backtracker";
 const selfReloadError = "Do not attempt to re-require Heatsync. If you REALLY want to, do it yourself with require.cache and deal with possibly ticking timers and event listeners, but don't complain if something breaks :(";
 const failedSymbol = Symbol("LOADING_MODULE_FAILED");
 
-function isObject(item: any) {
-	if (typeof item !== "object" || item === null || Array.isArray(item)) return false;
+function isObject(item: any): boolean {
+	if (!objectLike(item)) return false;
 	return (item.constructor?.name === "Object");
+}
+
+function objectLike(item: any): boolean {
+	return typeof item === "object" && item !== null && !Array.isArray(item);
 }
 
 /**
