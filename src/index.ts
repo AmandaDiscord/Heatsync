@@ -15,6 +15,14 @@ function objectLike(item: any): boolean {
  */
 type WatchFunction = (path: string, options: fs.WatchFileOptions & { bigint?: false }, cb: (...args: any[]) => any) => any;
 type Class = abstract new (...args: any) => any;
+type SyncOptions = {
+	/** If modules imported from HeatSync should watch for changes made to said module to automatically reload them when changed. Defaults to true. */
+	watchFS?: boolean;
+	/** From fs.WatchFileOptions: If the process should keep running while files are being watched. Defaults to false. */
+	persistentWatchers?: boolean;
+	/** What function to use for watching files if watchFS is true. Defaults to fs.watch which can be unreliable on linux. Can be fs.watch or fs.watchFile. */
+	watchFunction?: WatchFunction
+}
 
 class Sync {
 	/**
@@ -32,13 +40,19 @@ class Sync {
 	private readonly _remembered = new Map<string, any>();
 	private readonly _references = new Map<string, any>();
 	private readonly _watchers = new Map<string, import("fs").FSWatcher>();
-	private readonly _reloadableInstances: Map<string, Set<WeakRef<any>>> = new Map();
-	private readonly _reloadableInstancesRegistry: FinalizationRegistry<{ key: string, ref: WeakRef<any> }>;
-	private readonly _attributes = new Map<string, ImportAttributes>();
+	private readonly _reloadableInstances = new Map<string, Set<WeakRef<any>>>();
+	private readonly _reloadableInstancesRegistry = new FinalizationRegistry<{ key: string, ref: WeakRef<any> }>(({ key, ref }) => {
+		const instances = this._reloadableInstances.get(key);
+		if (instances) {
+			instances.delete(ref);
+			if (!instances.size) this._reloadableInstances.delete(key);
+		}
+	});
+	private readonly _attributes = new Map<string, ImportAttributes>(); // Unused reference in the CJS version. Used for Parity with the ESM version for ImportAttributes.
 
-	private readonly _options: { watchFS: boolean; persistentWatchers: boolean; watchFunction: WatchFunction } = {} as typeof this._options;
+	private readonly _options: Required<SyncOptions> = {} as typeof this._options;
 
-	public constructor(options?: { watchFS?: boolean; persistentWatchers?: boolean; watchFunction?: WatchFunction }) {
+	public constructor(options?: SyncOptions) {
 		if (options?.watchFS === undefined) this._options.watchFS = true;
 		else this._options.watchFS = options.watchFS ?? false;
 		if (options?.persistentWatchers === undefined) this._options.persistentWatchers = true;
@@ -57,8 +71,6 @@ class Sync {
 				sync._reloadableInstancesRegistry.register(this, { key, ref });
 			}
 		}
-
-		this._reloadableInstancesRegistry = new FinalizationRegistry(({ key, ref }) => this._reloadableInstances.get(key)?.delete(ref));
 	}
 
 	/**
@@ -71,13 +83,13 @@ class Sync {
 	 *
 	 * You will have to type the return value yourself if typings are important to you.
 	 */
-	public require(id: string): any;
-	public require(id: Array<string>): any;
-	public require(id: string, _from: string): any;
-	public require(id: string | Array<string>, _from?: string): any {
+	public require<T = any>(id: string): T;
+	public require<T = Array<any>>(id: Array<string>): T;
+	public require<T = any>(id: string, _from: string): T;
+	public require<T = any>(id: string | Array<string>, _from?: string): T {
 		let from: string;
 		from = _from ?? getStack().first()!.dir;
-		if (Array.isArray(id)) return id.map(item => this.require(item, from));
+		if (Array.isArray(id)) return id.map(item => this.require(item, from)) as T;
 		const directory = !path.isAbsolute(id) ? require.resolve(path.join(from, id)) : require.resolve(id);
 		if (directory === __filename) throw new Error(selfReloadError);
 		const value = require(directory);
@@ -110,11 +122,11 @@ class Sync {
 	 *
 	 * You will have to type the return value yourself if typings are important to you.
 	 */
-	public import(id: string, importAttributes?: ImportAttributes): Promise<any>;
-	public import(id: Array<string>, importAttributes?: ImportAttributes): Promise<Array<any>>;
-	public import(id: Array<string>, importAttributes: ImportAttributes, _from: string): Promise<Array<any>>;
-	public import(id: string, importAttributes: ImportAttributes, _from: string): Promise<any>;
-	public import(_id: string | Array<string>, _importAttributes?: ImportAttributes, _from?: string): Promise<any | Array<any>> {
+	public import<T = any>(id: string, importAttributes?: ImportAttributes): Promise<T>;
+	public import<T = Array<any>>(id: Array<string>, importAttributes?: ImportAttributes): Promise<T>;
+	public import<T = Array<any>>(id: Array<string>, importAttributes: ImportAttributes, _from: string): Promise<T>;
+	public import<T = any>(id: string, importAttributes: ImportAttributes, _from: string): Promise<T>;
+	public import<T = any>(_id: string | Array<string>, _importAttributes?: ImportAttributes, _from?: string): Promise<T> {
 		throw new Error("The CJS version of heatsync does not support the import statement. Use the import statement to import heatsync if heatsync must use the import statement in the backend");
 	}
 
@@ -168,15 +180,15 @@ class Sync {
 	 * trigger an update and then watch the file again. If the watcher has already triggered at least once, heatsync waits for the file to finish updating and then
 	 * triggers the update. There is no way to stop this currently and if you call resync after this point, multiple updates will be processed.
 	 */
-	public resync(id: string): any;
-	public resync(id: Array<string>): any;
-	public resync(id: string, _from?: string): any;
-	public resync(id: string, _from?: string): any;
-	public resync(id: string | Array<string>, _from?: string): any {
+	public resync<T = any>(id: string): T;
+	public resync<T = any>(id: string, _from: string): T;
+	public resync<T = Array<any>>(id: Array<string>): T;
+	public resync<T = Array<any>>(id: Array<string>, _from: string): T;
+	public resync<T = any>(id: string | Array<string>, _from?: string): T {
 		let from: string;
 		if (typeof id === "string" && !id.startsWith(".")) from = require.resolve(id);
 		else from = _from ?? getStack().first()!.dir;
-		if (Array.isArray(id)) return id.map(item => this.resync(item, from));
+		if (Array.isArray(id)) return id.map(item => this.resync(item, from)) as T;
 		const directory = !path.isAbsolute(id) ? require.resolve(path.join(from, id)) : require.resolve(id);
 		if (directory === __filename) throw new Error(selfReloadError);
 
@@ -296,6 +308,28 @@ class Sync {
 		return this.ReloadableClass;
 	}
 
+	/**
+	 * Clean up everything related to this HeatSync instance.
+	 * Removes all temporary listeners, timers, fs watchers, imported module references,
+	 * hard reloadable class instance references, remembered variables and ImportAttributes.
+	 */
+	public dispose(): void {
+		this._listeners.forEach(entry => {
+			entry.forEach(l => l[0].removeListener(l[1], l[2]));
+		});
+		this._watchers.forEach(w => w.close());
+		this._timers.forEach(timers => timers.forEach(([type, t]) => type === "timeout" ? clearTimeout(t) : clearInterval(t)));
+		this._reloadableInstances.forEach(s => s.clear());
+
+		this._listeners.clear();
+		this._watchers.clear();
+		this._timers.clear();
+		this._remembered.clear();
+		this._references.clear();
+		this._reloadableInstances.clear();
+		this._attributes.clear();
+	}
+
 
 	private _watchFile(directory: string): void {
 		let timer: NodeJS.Timeout | null = null;
@@ -336,6 +370,7 @@ class Sync {
 		try {
 			this.require(directory);
 		} catch (e) {
+			e.file = directory;
 			this.events.emit("error", e);
 			return failedSymbol;
 		}

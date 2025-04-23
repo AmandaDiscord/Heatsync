@@ -18,13 +18,19 @@ function objectLike(item) {
 
 /** @typedef {(path: string, options: fs.WatchFileOptions & { bigint?: false }, cb: (...args: any[]) => any) => any} WatchFunction */
 /** @typedef {abstract new (...args: any) => any} Class */
+/**
+ * @typedef SyncOptions
+ * @property {boolean} [watchFS]
+ * @property {boolean} [persistentWatchers]
+ * @property {WatchFunction} [watchFunction]
+ */
 
 class Sync {
 	/**
-	 * @param {{ watchFS?: boolean; persistentWatchers?: boolean; watchFunction?: WatchFunction }} [options]
+	 * @param {SyncOptions} [options]
 	 */
 	constructor(options) {
-		/** @type {{ watchFS: boolean; persistentWatchers: boolean; watchFunction: WatchFunction }} */
+		/** @type {Required<SyncOptions>} */
 		// @ts-expect-error
 		this._options = {};
 		if (options?.watchFS === undefined) this._options.watchFS = true;
@@ -73,23 +79,31 @@ class Sync {
 			}
 		}
 
-		this._reloadableInstancesRegistry = new FinalizationRegistry(({ key, ref }) => this._reloadableInstances.get(key)?.delete(ref));
+		this._reloadableInstancesRegistry = new FinalizationRegistry(({ key, ref }) => {
+			const instances = this._reloadableInstances.get(key);
+			if (instances) {
+				instances.delete(ref);
+				if (!instances.size) this._reloadableInstances.delete(key);
+			}
+		});
 	}
 
 	/**
+	 * @template [T=any]
 	 * @param {string | Array<string>} id
 	 * @param {string} [_from]
-	 * @returns {any}
+	 * @returns {T}
 	 */
 	require(id, _from) {
 		throw new Error("The ESM version of heatsync does not support the require statement. Use import instead.");
 	}
 
 	/**
+	 * @template [T=any]
 	 * @param {string | Array<string>} id
 	 * @param {ImportAttributes} [importAttributes]
 	 * @param {string} [_from]
-	 * @returns {Promise<any>}
+	 * @returns {Promise<T>}
 	 */
 	async import(id, importAttributes, _from) {
 		/** @type {string} */
@@ -98,6 +112,7 @@ class Sync {
 		from = _from ?? getStack().first().dir;
 		if (from.startsWith("file://")) from = url.fileURLToPath(from);
 		from = path.normalize(from);
+		// @ts-expect-error
 		if (Array.isArray(id)) return Promise.all(id.map(item => this.import(item, importAttributes, from)));
 		let directory = (!path.isAbsolute(id) ? await Sync._resolve(path.join(from, id)) : await Sync._resolve(id));
 		if (directory.startsWith("file://")) directory = url.fileURLToPath(directory);
@@ -207,9 +222,10 @@ class Sync {
 	}
 
 	/**
+	 * @template [T=any]
 	 * @param {string} id
 	 * @param {string} [_from]
-	 * @returns {Promise<any>}
+	 * @returns {Promise<T>}
 	 */
 	async resync(id, _from) {
 		/** @type {string} */
@@ -219,10 +235,12 @@ class Sync {
 		else from = _from ?? getStack().first().dir;
 		if (from.startsWith("file://")) from = url.fileURLToPath(from);
 		from = path.normalize(from);
+		// @ts-expect-error
 		if (Array.isArray(id)) return Promise.all(id.map(item => this.resync(item, from)));
 		let directory = (!path.isAbsolute(id) ? await Sync._resolve(path.join(from, id)) : await Sync._resolve(id));
 		if (directory.startsWith("file://")) directory = url.fileURLToPath(directory);
 		directory = path.normalize(directory);
+		if (directory === path.normalize(import.meta.url.startsWith("file://") ? url.fileURLToPath(import.meta.url) : import.meta.url)) throw new Error(selfReloadError);
 
 		this._watchers.get(directory)?.close();
 		this._watchers.delete(directory);
@@ -304,6 +322,23 @@ class Sync {
 		return this.ReloadableClass;
 	}
 
+	dispose() {
+		this._listeners.forEach(entry => {
+			entry.forEach(l => l[0].removeListener(l[1], l[2]));
+		});
+		this._watchers.forEach(w => w.close());
+		this._timers.forEach(timers => timers.forEach(([type, t]) => type === "timeout" ? clearTimeout(t) : clearInterval(t)));
+		this._reloadableInstances.forEach(s => s.clear());
+
+		this._listeners.clear();
+		this._watchers.clear();
+		this._timers.clear();
+		this._remembered.clear();
+		this._references.clear();
+		this._reloadableInstances.clear();
+		this._attributes.clear();
+	}
+
 	/**
 	 * @param {string} directory
 	 * @returns {void}
@@ -335,9 +370,8 @@ class Sync {
 		this._needsrefresh.add(directory);
 		this.events.emit(directory);
 		this.events.emit("any", directory);
-		const normalized = path.normalize(directory);
 
-		const listeners = this._listeners.get(normalized);
+		const listeners = this._listeners.get(directory);
 		if (listeners) {
 			for (const [target, event, func] of listeners) {
 				target.removeListener(event, func);
@@ -356,6 +390,7 @@ class Sync {
 			const attribs = this._attributes.get(directory)
 			await this.import(directory, attribs)
 		} catch (e) {
+			e.file = directory;
 			this.events.emit("error", e);
 			return failedSymbol;
 		}
