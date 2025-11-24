@@ -90,26 +90,26 @@ class Sync {
 		let from: string;
 		from = _from ?? getStack().first()!.dir;
 		if (Array.isArray(id)) return id.map(item => this.require(item, from)) as T;
-		const directory = !path.isAbsolute(id) ? require.resolve(path.join(from, id)) : require.resolve(id);
+		const directory = path.isAbsolute(id) ? require.resolve(id) : require.resolve(path.join(from, id));
 		if (directory === __filename) throw new Error(selfReloadError);
 		const value = require(directory);
 		if (!objectLike(value)) throw new Error(`${directory} does not seem to export an Object and as such, changes made to the file cannot be reflected as the value would be immutable. Importing non Objects through HeatSync isn't supported and may be erraneous. Exports being Classes will not reload properly`);
 
 		const oldObject = this._references.get(directory);
-		if (!oldObject) {
-			this._references.set(directory, value);
-
-			if (this._options.watchFS) this._watchFile(directory)
-		} else {
+		if (oldObject) {
 			for (const key of Object.keys(oldObject)) {
 				if (value[key] === undefined) delete oldObject[key];
 			}
 			Object.assign(oldObject, value);
+		} else {
+			this._references.set(directory, value);
+
+			if (this._options.watchFS) this._watchFile(directory)
 		}
 
 		const ref = this._references.get(directory);
-		if (!ref) return value;
-		else return ref;
+		if (ref) return ref;
+		return value;
 	}
 
 	/**
@@ -189,7 +189,7 @@ class Sync {
 		if (typeof id === "string" && !id.startsWith(".")) from = require.resolve(id);
 		else from = _from ?? getStack().first()!.dir;
 		if (Array.isArray(id)) return id.map(item => this.resync(item, from)) as T;
-		const directory = !path.isAbsolute(id) ? require.resolve(path.join(from, id)) : require.resolve(id);
+		const directory = path.isAbsolute(id) ? require.resolve(id) : require.resolve(path.join(from, id));
 		if (directory === __filename) throw new Error(selfReloadError);
 
 		this._watchers.get(directory)?.close(); // close it in case the intent was to reload the file faster than an existing watcher that was active if it was polling.
@@ -232,7 +232,7 @@ class Sync {
 			// The closest variable to the function call (without going past it) is the correct variable to use.
 			// So we just look for the last match that's before this function call.
 			const rememberFunctionCallColumn = first.srcColumn - 1;
-			const lastMatch = variableMatches.filter(match => match.index < rememberFunctionCallColumn).slice(-1)[0];
+			const lastMatch = variableMatches.findLast(match => match.index < rememberFunctionCallColumn);
 			if (!lastMatch) {
 				throw new Error(
 					`Sorry, couldn't parse out the variable name from the line where you used sync.remember. Please provide a key as the second argument instead!`
