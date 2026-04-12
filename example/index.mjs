@@ -1,13 +1,11 @@
-import Heatsync from "../esm.mjs";
-/** @type {import("../")} */
-// @ts-ignore
+import Heatsync from "heatsync";
 const sync = new Heatsync();
 
-// we obviously need to bounce around this instance of sync to other files
-import passthrough from "./passthrough.js";
-Object.assign(passthrough, { sync: sync });
+globalThis.passthrough = { sync };
 
-sync.import([
-	"./modules/utilities.mjs",
-	"./scripts/test.mjs"
-]);
+/** @type {typeof import("./scripts/test.mjs")} */
+const test = await sync.import("./scripts/test.mjs");
+
+setInterval(() => {
+	test.default.process("someone");
+}, 5000);

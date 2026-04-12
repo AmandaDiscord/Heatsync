@@ -1,19 +1,29 @@
 // @ts-check
 
-import fs from "fs";
-import path from "path";
-import url from "url";
-import { EventEmitter } from "events";
-import { getStack } from "backtracker";
-import assert from "assert";
+import fs from "node:fs";
+import path from "node:path";
+import url from "node:url";
+import { EventEmitter } from "node:events";
+import assert from "node:assert";
 
-const selfReloadError = "Do not attempt to re-require Heatsync. If you REALLY want to, do it yourself with require.cache and deal with possibly ticking timers and event listeners, but don't complain if something breaks :(";
+import { getStack } from "backtracker";
+
+import shared from "./shared.js";
+
+const wrongLoaderError = "The ESM version of heatsync does not support the require statement. Use the require statement to import heatsync if heatsync must use the require statement in the backend";
 const refreshRegex = /(\?refresh=\d+)/;
-const failedSymbol = Symbol("LOADING_MODULE_FAILED");
 
 /** @param {any} item */
 function objectLike(item) {
 	return typeof item === "object" && item !== null && !Array.isArray(item);
+}
+
+/** @param {string} id */
+function cleanPath(id) {
+	id = id.replace(refreshRegex, "");
+	if (id.startsWith("file://")) id = url.fileURLToPath(id);
+	if (path.isAbsolute(id)) id = path.normalize(id);
+	return id;
 }
 
 /** @typedef {(path: string, options: fs.WatchFileOptions & { bigint?: false }, cb: (...args: any[]) => any) => any} WatchFunction */
@@ -30,7 +40,10 @@ class Sync {
 	 * @param {SyncOptions} [options]
 	 */
 	constructor(options) {
-		/** @type {Required<SyncOptions>} */
+		/**
+		 * @type {Required<SyncOptions>}
+		 * @private
+		 */
 		// @ts-expect-error
 		this._options = {};
 		if (options?.watchFS === undefined) this._options.watchFS = true;
@@ -40,36 +53,56 @@ class Sync {
 		if (options?.watchFunction === undefined) this._options.watchFunction = fs.watch;
 		else this._options.watchFunction = options.watchFunction ?? fs.watch;
 
+		/** @type {EventEmitter} */
 		this.events = new EventEmitter();
 		/**
 		 * @type {Map<string, Array<[EventEmitter, string, (...args: Array<any>) => any]>>}
+		 * @private
 		 */
 		this._listeners = new Map();
 		/**
 		 * @type {Map<string, any>}
+		 * @private
 		 */
 		this._references = new Map();
 		/**
 		 * @type {Map<string, import("fs").FSWatcher>}
+		 * @private
 		 */
 		this._watchers = new Map();
-		/** @type {Set<string>} */
+		/**
+		 * @type {Set<string>}
+		 * @private
+		 */
 		this._needsrefresh = new Set();
-		/** @type {Map<string, Array<["timeout" | "interval", NodeJS.Timeout]>>} */
+		/**
+		 * @type {Map<string, Array<["timeout" | "interval", NodeJS.Timeout]>>}
+		 * @private
+		 */
 		this._timers = new Map();
-		/** @type {Map<string, any>} */
+		/**
+		 * @type {Map<string, any>}
+		 * @private
+		 */
 		this._remembered = new Map();
-		/** @type {Map<string, Set<WeakRef<any>>>} */
+		/**
+		 * @type {Map<string, Set<WeakRef<any>>>}
+		 * @private
+		 */
 		this._reloadableInstances = new Map();
-		/** @type {Map<string, ImportAttributes>} */
-		this._attributes = new Map()
+		/**
+		 * @type {Map<string, ImportAttributes>}
+		 * @private
+		 */
+		this._attributes = new Map();
 
 		const sync = this;
+		/** @type {Class} */
 		this.ReloadableClass = class ReloadableClass {
 			constructor() {
 				const first = getStack().first();
 				assert(first);
-				const key = `${first.srcAbsolute}:${this.constructor.name}`;
+				const key = `${cleanPath(first.srcAbsolute)}:${this.constructor.name}`;
 				if (!sync._reloadableInstances.has(key)) sync._reloadableInstances.set(key, new Set());
 				const ref = new WeakRef(this);
 				const set = sync._reloadableInstances.get(key);
@@ -79,6 +112,10 @@ class Sync {
 			}
 		}
 
+		/**
+		 * @type {FinalizationRegistry<{ key: string, ref: WeakRef<any> }>}
+		 * @private
+		 */
 		this._reloadableInstancesRegistry = new FinalizationRegistry(({ key, ref }) => {
 			const instances = this._reloadableInstances.get(key);
 			if (instances) {
@@ -95,7 +132,7 @@ class Sync {
 	 * @returns {T}
 	 */
 	require(id, _from) {
-		throw new Error("The ESM version of heatsync does not support the require statement. Use import instead.");
+		throw new Error(wrongLoaderError);
 	}
 
 	/**
@@ -110,37 +147,29 @@ class Sync {
 		let from;
 		// @ts-expect-error
 		from = _from ?? getStack().first().dir;
-		if (from.startsWith("file://")) from = url.fileURLToPath(from);
-		from = path.normalize(from);
 		// @ts-expect-error
 		if (Array.isArray(id)) return Promise.all(id.map(item => this.import(item, importAttributes, from)));
-		let directory = (!path.isAbsolute(id) ? await Sync._resolve(path.join(from, id)) : await Sync._resolve(id));
-		if (directory.startsWith("file://")) directory = url.fileURLToPath(directory);
-		directory = path.normalize(directory);
+		const directory = Sync._resolve(cleanPath(id), cleanPath(from));
 		if (this._references.get(directory) && !this._needsrefresh.has(directory)) return this._references.get(directory);
-		if (directory === path.normalize(import.meta.url.startsWith("file://") ? url.fileURLToPath(import.meta.url) : import.meta.url)) throw new Error(selfReloadError);
+		if (directory === cleanPath(import.meta.url)) throw new Error(shared.selfReloadError);
 		let value
 		if (importAttributes) value = await import(`file://${directory}?refresh=${Date.now()}`, { with: importAttributes });
 		else value = await import(`file://${directory}?refresh=${Date.now()}`); // this busts the internal import cache
 		if (importAttributes) this._attributes.set(directory, importAttributes);
-		if (!objectLike(value)) throw new Error(`${directory} does not seem to export an Object and as such, changes made to the file cannot be reflected as the value would be immutable. Importing non Objects through HeatSync isn't supported and may be erraneous. Exports being Classes will not reload properly`);
+		if (!objectLike(value)) throw new Error(`${directory} ${shared.nonObjectErrorPart}`);
 		this._needsrefresh.delete(directory);
 
 		const oldObject = this._references.get(directory);
-		if (!oldObject) {
-			this._references.set(directory, value);
-
-			if (this._options.watchFS) this._watchFile(directory);
-		} else {
+		if (oldObject) {
 			for (const key of Object.keys(oldObject)) {
 				if (value[key] === undefined) delete oldObject[key];
 			}
-			if (oldObject.default && value && value.default && objectLike(oldObject.default) && objectLike(value.default)) {
+			if (oldObject.default && value?.default && objectLike(oldObject.default) && objectLike(value.default)) {
 				for (const key of Object.keys(oldObject.default)) {
 					if (value.default[key] === undefined) delete oldObject.default[key];
 				}
 			}
-			if (oldObject.default && value && value.default && objectLike(oldObject.default) && objectLike(value.default)) {
+			if (oldObject.default && value?.default && objectLike(oldObject.default) && objectLike(value.default)) {
 				if (typeof value.default === "object" && !Array.isArray(value.default)) {
 					for (const key of Object.keys(value.default)) {
 						oldObject.default[key] = value.default[key];
@@ -153,6 +182,10 @@ class Sync {
 				oldObject[key] = value[key];
 				delete value[key] // Allows the old values to get garbage collected when the module is eventually imported again. Not the import itself though
 			} // Don't use Object.assign because of export default being readonly and no ignore list
+		} else {
+			this._references.set(directory, value);
+
+			if (this._options.watchFS) this._watchFile(directory);
 		}
 
 		return oldObject ?? value;
@@ -168,13 +201,12 @@ class Sync {
 	 */
 	addTemporaryListener(target, event, callback, method = "on") {
 		if (typeof target?.[method] !== "function") throw new TypeError(`${target?.constructor?.name ?? typeof target} does not include the method "${method}". It may not implement/extend or only partially implements/extends an EventEmitter`);
-		// @ts-expect-error It's always there, trust!
-		let first = getStack().first().absolute.replace(refreshRegex, "");
-		if (first.startsWith("file://")) first = url.fileURLToPath(first);
-		first = path.normalize(first);
-		if (!this._listeners.get(first)) this._listeners.set(first, []);
-		// @ts-expect-error On thread race conditions???
-		this._listeners.get(first).push([target, event, callback]);
+		let first = getStack().first();
+		assert(first);
+		const absolute = cleanPath(first.absolute);
+		if (!this._listeners.get(absolute)) this._listeners.set(absolute, []);
+		// @ts-expect-error
+		this._listeners.get(absolute).push([target, event, callback]);
 		setImmediate(() => target[method](event, callback));
 		return target;
 	}
@@ -187,16 +219,15 @@ class Sync {
 	 * @returns {NodeJS.Timeout}
 	 */
 	addTemporaryTimeout(callback, ms, ...args) {
-		// @ts-expect-error
-		let first = getStack().first().absolute.replace(refreshRegex, "");
-		if (first.startsWith("file://")) first = url.fileURLToPath(first);
-		first = path.normalize(first);
-		if (!this._timers.get(first)) this._timers.set(first, []);
+		let first = getStack().first();
+		assert(first);
+		const absolute = cleanPath(first.absolute);
+		if (!this._timers.get(absolute)) this._timers.set(absolute, []);
 		/** @type {NodeJS.Timeout} */
 		// @ts-expect-error
 		const timer = setTimeout(callback, ms, ...args);
 		// @ts-expect-error
-		this._timers.get(first).push(["timeout", timer]);
+		this._timers.get(absolute).push(["timeout", timer]);
 		return timer;
 	}
 
@@ -208,16 +239,15 @@ class Sync {
 	 * @returns {NodeJS.Timeout}
 	 */
 	addTemporaryInterval(callback, ms, ...args) {
-		// @ts-expect-error
-		let first = getStack().first().absolute.replace(refreshRegex, "");
-		if (first.startsWith("file://")) first = url.fileURLToPath(first);
-		first = path.normalize(first);
-		if (!this._timers.get(first)) this._timers.set(first, []);
+		let first = getStack().first();
+		assert(first);
+		const absolute = cleanPath(first.absolute);
+		if (!this._timers.get(absolute)) this._timers.set(absolute, []);
 		/** @type {NodeJS.Timeout} */
 		// @ts-expect-error
 		const timer = setInterval(callback, ms, ...args);
 		// @ts-expect-error
-		this._timers.get(first).push(["interval", timer]);
+		this._timers.get(absolute).push(["interval", timer]);
 		return timer;
 	}
 
@@ -230,24 +260,19 @@ class Sync {
 	async resync(id, _from) {
 		/** @type {string} */
 		let from;
-		if (typeof id === "string" && !id.startsWith(".")) from = await Sync._resolve(id);
 		// @ts-expect-error
-		else from = _from ?? getStack().first().dir;
-		if (from.startsWith("file://")) from = url.fileURLToPath(from);
-		from = path.normalize(from);
+		from = _from ?? getStack().first().dir;
 		// @ts-expect-error
 		if (Array.isArray(id)) return Promise.all(id.map(item => this.resync(item, from)));
-		let directory = (!path.isAbsolute(id) ? await Sync._resolve(path.join(from, id)) : await Sync._resolve(id));
-		if (directory.startsWith("file://")) directory = url.fileURLToPath(directory);
-		directory = path.normalize(directory);
-		if (directory === path.normalize(import.meta.url.startsWith("file://") ? url.fileURLToPath(import.meta.url) : import.meta.url)) throw new Error(selfReloadError);
+		const directory = Sync._resolve(cleanPath(id), cleanPath(from));
+		if (directory === cleanPath(import.meta.url)) throw new Error(shared.selfReloadError);
 
 		this._watchers.get(directory)?.close();
 		this._watchers.delete(directory);
 
 		const result = await this._watchFunctionCallback(directory);
 
-		if (result === failedSymbol) throw new Error("Module failed to resync");
+		if (result === shared.failedSymbol) throw new Error(shared.resyncFailError);
 
 		if (this._options.watchFS && !this._watchers.has(directory)) this._watchFile(directory);
 
@@ -258,17 +283,14 @@ class Sync {
 	 * @template T
 	 * @param {() => T} getter
 	 * @param {string} [key]
-	 * @returns {Promise<T>}
+	 * @returns {T}
 	 */
-	async remember(getter, key) {
+	remember(getter, key) {
 		const first = getStack().first();
 		assert(first);
-		let firstSrc = first.srcAbsolute.replace(refreshRegex, "");
-		if (firstSrc.startsWith("file://")) firstSrc = url.fileURLToPath(firstSrc);
-		firstSrc = path.normalize(firstSrc);
 
 		if (!key) {
-			const content = fs.readFileSync(firstSrc, { encoding: "utf8" });
+			const content = fs.readFileSync(cleanPath(first.srcAbsolute), { encoding: "utf8" });
 			const lines = content.split("\n");
 			const line = lines[first.srcLine - 1];
 			const variableMatches = [...line.matchAll(/([a-zA-Z0-9_$.]+) *[=:]/g)];
@@ -276,17 +298,17 @@ class Sync {
 			// The closest variable to the function call (without going past it) is the correct variable to use.
 			// So we just look for the last match that's before this function call.
 			const rememberFunctionCallColumn = first.srcColumn - 1;
-			const lastMatch = variableMatches.filter(match => match.index < rememberFunctionCallColumn).slice(-1)[0];
+			const lastMatch = variableMatches.findLast(match => match.index < rememberFunctionCallColumn);
 			if (!lastMatch) {
 				throw new Error(
-					`Sorry, couldn't parse out the variable name from the line where you used sync.remember. Please provide a key as the second argument instead!`
+					shared.parseKeyError
 					+ `\n  > ${first.srcLine} | ${line}\n`
 				);
 			}
 			key = lastMatch[1];
 		}
 
-		key = `${firstSrc}:${key}`;
+		key = `${cleanPath(first.srcAbsolute)}:${key}`;
 
 		if (this._remembered.has(key)) return this._remembered.get(key);
 
@@ -301,8 +323,9 @@ class Sync {
 	reloadClassMethods(loadedClass) {
 		const first = getStack().first();
 		assert(first);
-		const abs = first.srcAbsolute;
+		const abs = cleanPath(first.srcAbsolute);
 
+		/** @param {Class | (() => Class)} loadedClass */
 		const loadClass = loadedClass => {
 			const key = `${abs}:${loadedClass.name}`;
 
@@ -323,12 +346,14 @@ class Sync {
 	}
 
 	dispose() {
-		this._listeners.forEach(entry => {
-			entry.forEach(l => l[0].removeListener(l[1], l[2]));
-		});
-		this._watchers.forEach(w => w.close());
-		this._timers.forEach(timers => timers.forEach(([type, t]) => type === "timeout" ? clearTimeout(t) : clearInterval(t)));
-		this._reloadableInstances.forEach(s => s.clear());
+		for (const entry of this._listeners.values()) {
+			for (const l of entry) l[0].removeListener(l[1], l[2]);
+		}
+		for (const timers of this._timers.values()) {
+			for (const [type, t] of timers) (type === "timeout" ? clearTimeout : clearInterval)(t);
+		}
+		for (const w of this._watchers.values()) w.close();
+		for (const s of this._reloadableInstances.values()) s.clear();
 
 		this._listeners.clear();
 		this._watchers.clear();
@@ -390,37 +415,24 @@ class Sync {
 			const attribs = this._attributes.get(directory)
 			await this.import(directory, attribs)
 		} catch (e) {
+			// @ts-expect-error Cannot type annotate as Error. Has to be any or unknown. But cannot cleanly type annotate
 			e.file = directory;
 			this.events.emit("error", e);
-			return failedSymbol;
+			return shared.failedSymbol;
 		}
 	}
 
 	/**
 	 * @param {string} id
-	 * @returns {Promise<string>}
+	 * @param {string} from
+	 * @returns {string}
 	 * @private
 	 */
-	static async _resolve(id) {
-		let absolute = path.normalize(id.startsWith("file://") ? url.fileURLToPath(id) : id);
-		const decon = path.parse(absolute);
-		if (!decon.ext || decon.ext.length === 0) {
-			// check if the id is a directory
-			const isDir = await fs.promises.stat(absolute).then(s => s.isDirectory()).catch(() => false);
-			if (isDir) {
-				const dirContents = await fs.promises.readdir(absolute);
-				if (dirContents.includes("index.mjs")) absolute = path.join(absolute, "index.mjs");
-				else absolute = path.join(absolute, "index.js");
-				// Even if it doesn't exist in the directory, the user still needs to know the intent of the resolver
-			} else {
-				// read the base dir
-				const dirContents = await fs.promises.readdir(decon.dir);
-				if (dirContents.includes(`${decon.name}.mjs`)) absolute = path.join(absolute, `${decon.name}.mjs`);
-				else absolute = path.join(absolute, `${decon.name}.js`);
-			}
-		}
-		await fs.promises.access(absolute, fs.constants.R_OK);
-		return absolute;
+	static _resolve(id, from) {
+		id = id.replace("\\", "/"); // \ causes ERR_INVALID_MODULE_SPECIFIER is not a valid package name
+		if (path.isAbsolute(id)) return cleanPath(import.meta.resolve(id));
+		else return id.startsWith(".") ? cleanPath(import.meta.resolve(path.join(from, id))) : cleanPath(import.meta.resolve(id));
+		// else resolves either local paths (require only looks in the current dir if a ./ or ../ is present at the start otherwise it looks in registries like node_modules)
 	}
 }
 

@@ -1,15 +1,16 @@
+
 const { sync } = globalThis.passthrough;
 
 /**
- * @type {import("../modules/utilities.mjs")}
+ * @type {import("../modules/utilities.cjs")}
  */
-const utils = await sync.import("../modules/utilities.mjs");
+const utils = sync.require("../modules/utilities.cjs");
 
-export default {
+module.exports = {
 	usage: "<Name>",
 	description: "tell someone they are epic",
 	/** @param {string} name */
 	process(name) {
-		return utils.default.epic(name);
+		return utils.epic(name);
 	}
 }
