@@ -33,6 +33,7 @@ function cleanPath(id) {
  * @property {boolean} [watchFS]
  * @property {boolean} [persistentWatchers]
  * @property {WatchFunction} [watchFunction]
+ * @property {number} [watchDebounceMS]
  */
 
 class Sync {
@@ -52,6 +53,8 @@ class Sync {
 		else this._options.persistentWatchers = options.persistentWatchers ?? false;
 		if (options?.watchFunction === undefined) this._options.watchFunction = fs.watch;
 		else this._options.watchFunction = options.watchFunction ?? fs.watch;
+		if (options?.watchDebounceMS === undefined) this._options.watchDebounceMS = 1000;
+		else this._options.watchDebounceMS = options.watchDebounceMS;
 
 		/** @type {EventEmitter} */
 		this.events = new EventEmitter();
@@ -95,6 +98,11 @@ class Sync {
 		 * @private
 		 */
 		this._attributes = new Map();
+		/**
+		 * @type {Map<string, Promise<any>>}
+		 * @private
+		 */
+		this._pending = new Map();
 
 		const sync = this;
 		/** @type {Class} */
@@ -150,45 +158,37 @@ class Sync {
 		// @ts-expect-error
 		if (Array.isArray(id)) return Promise.all(id.map(item => this.import(item, importAttributes, from)));
 		const directory = Sync._resolve(cleanPath(id), cleanPath(from));
+		if (this._pending.has(directory)) return this._pending.get(directory);
 		if (this._references.get(directory) && !this._needsrefresh.has(directory)) return this._references.get(directory);
 		if (directory === cleanPath(import.meta.url)) throw new Error(shared.selfReloadError);
-		let value
-		if (importAttributes) value = await import(`file://${directory}?refresh=${Date.now()}`, { with: importAttributes });
-		else value = await import(`file://${directory}?refresh=${Date.now()}`); // this busts the internal import cache
-		if (importAttributes) this._attributes.set(directory, importAttributes);
+		let pending, value
+		if (importAttributes) pending = import(`file://${directory}?refresh=${Date.now()}`, { with: importAttributes });
+		else pending = import(`file://${directory}?refresh=${Date.now()}`); // this busts the internal import cache
+		this._pending.set(directory, pending);
+		try {
+			value = await pending;
+		} finally {
+			this._pending.delete(directory);
+		}
 		if (!objectLike(value)) throw new Error(`${directory} ${shared.nonObjectErrorPart}`);
+		if (importAttributes) this._attributes.set(directory, importAttributes);
 		this._needsrefresh.delete(directory);
 
-		const oldObject = this._references.get(directory);
+		const mutable = { ...value }
+
+		const oldObject = this._references.get(directory); // will be a pure Object made by us that is mutable
 		if (oldObject) {
 			for (const key of Object.keys(oldObject)) {
-				if (value[key] === undefined) delete oldObject[key];
+				if (mutable[key] === undefined) delete oldObject[key];
 			}
-			if (oldObject.default && value?.default && objectLike(oldObject.default) && objectLike(value.default)) {
-				for (const key of Object.keys(oldObject.default)) {
-					if (value.default[key] === undefined) delete oldObject.default[key];
-				}
-			}
-			if (oldObject.default && value?.default && objectLike(oldObject.default) && objectLike(value.default)) {
-				if (typeof value.default === "object" && !Array.isArray(value.default)) {
-					for (const key of Object.keys(value.default)) {
-						oldObject.default[key] = value.default[key];
-					}
-				}
-			}
-
-			for (const key of Object.keys(value)) {
-				if (key === "default") continue;
-				oldObject[key] = value[key];
-				delete value[key] // Allows the old values to get garbage collected when the module is eventually imported again. Not the import itself though
-			} // Don't use Object.assign because of export default being readonly and no ignore list
+			Object.assign(oldObject, mutable);
 		} else {
-			this._references.set(directory, value);
+			this._references.set(directory, mutable);
 
 			if (this._options.watchFS) this._watchFile(directory);
 		}
 
-		return oldObject ?? value;
+		return oldObject ?? mutable;
 	}
 
 	/**
@@ -253,7 +253,7 @@ class Sync {
 
 	/**
 	 * @template [T=any]
-	 * @param {string} id
+	 * @param {string | Array<string>} id
 	 * @param {string} [_from]
 	 * @returns {Promise<T>}
 	 */
@@ -362,6 +362,9 @@ class Sync {
 		this._references.clear();
 		this._reloadableInstances.clear();
 		this._attributes.clear();
+		this._pending.clear();
+		this._needsrefresh.clear();
+		this.events.removeAllListeners();
 	}
 
 	/**
@@ -381,7 +384,7 @@ class Sync {
 					timer = null;
 				}
 
-				timer = setTimeout(() => this._watchFunctionCallback(directory), 1000).unref();
+				timer = setTimeout(() => this._watchFunctionCallback(directory), this._options.watchDebounceMS).unref();
 			})
 		);
 	}
@@ -431,7 +434,7 @@ class Sync {
 	static _resolve(id, from) {
 		id = id.replace("\\", "/"); // \ causes ERR_INVALID_MODULE_SPECIFIER is not a valid package name
 		if (path.isAbsolute(id)) return cleanPath(import.meta.resolve(id));
-		else return id.startsWith(".") ? cleanPath(import.meta.resolve(path.join(from, id))) : cleanPath(import.meta.resolve(id));
+		else return id.startsWith(".") ? cleanPath(import.meta.resolve(path.join(from, id))) : cleanPath(import.meta.resolve(id, url.pathToFileURL(from + "/")));
 		// else resolves either local paths (require only looks in the current dir if a ./ or ../ is present at the start otherwise it looks in registries like node_modules)
 	}
 }

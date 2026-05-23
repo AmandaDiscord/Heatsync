@@ -13,8 +13,10 @@ type SyncOptions = {
 	watchFS?: boolean;
 	/** From fs.WatchFileOptions: If the process should keep running while files are being watched. Defaults to false. */
 	persistentWatchers?: boolean;
-	/** What function to use for watching files if watchFS is true. Defaults to fs.watch which can be unreliable on linux. Can be fs.watch or fs.watchFile. */
+	/** What function to use for watching files if watchFS is true. Defaults to fs.watch which can be unreliable on linux. Can be fs.watch or fs.watchFile or some other wrapped function. */
 	watchFunction?: WatchFunction;
+	/** How long in ms HeatSync should wait before finalizing a reload of a file. This is for when files are modified in chunks and the watchFunction emits multiple events while modifying. Defaults to 1000 */
+	watchDebounceMS?: number;
 };
 
 declare class Sync {
@@ -129,7 +131,7 @@ declare class Sync {
 	 * @example
 	 * class ThisCanAlsoReload extends sync.reloadClassMethods(() => ThisCanAlsoReload) { // works
 	 * 	constructor() { ... }
-	 *    magic() { ... }
+	 * 	magic() { ... }
 	 * }
 	 * // doesn't need a follow-up function call
 	 * @example

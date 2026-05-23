@@ -23,6 +23,7 @@ function objectLike(item) {
  * @property {boolean} [watchFS]
  * @property {boolean} [persistentWatchers]
  * @property {WatchFunction} [watchFunction]
+ * @property {number} [watchDebounceMS]
  */
 
 class Sync {
@@ -40,6 +41,8 @@ class Sync {
 		else this._options.persistentWatchers = options.persistentWatchers ?? false;
 		if (options?.watchFunction === undefined) this._options.watchFunction = fs.watch;
 		else this._options.watchFunction = options.watchFunction ?? fs.watch;
+		if (options?.watchDebounceMS === undefined) this._options.watchDebounceMS = 1000;
+		else this._options.watchDebounceMS = options.watchDebounceMS;
 
 		/** @type {EventEmitter} */
 		this.events = new EventEmitter();
@@ -83,6 +86,11 @@ class Sync {
 		 * @private
 		 */
 		this._attributes = new Map();
+		/**
+		 * @type {Map<string, Promise<any>>}
+		 * @private
+		 */
+		this._pending = new Map();
 
 		const sync = this;
 		/** @type {Class} */
@@ -221,9 +229,9 @@ class Sync {
 
 	/**
 	 * @template [T=any]
-	 * @param {string} id
+	 * @param {string | Array<string>} id
 	 * @param {string} [_from]
-	 * @returns {Promise<T>}
+	 * @returns {T}
 	 */
 	resync(id, _from) {
 		/** @type {string} */
@@ -334,8 +342,10 @@ class Sync {
 		this._references.clear();
 		this._reloadableInstances.clear();
 		this._attributes.clear();
+		this._pending.clear();
+		this._needsrefresh.clear();
+		this.events.removeAllListeners();
 	}
-
 
 	/**
 	 * @param {string} directory
@@ -354,7 +364,7 @@ class Sync {
 					timer = null;
 				}
 
-				timer = setTimeout(() => this._watchFunctionCallback(directory), 1000).unref();
+				timer = setTimeout(() => this._watchFunctionCallback(directory), this._options.watchDebounceMS).unref();
 			})
 		);
 	}
@@ -402,7 +412,7 @@ class Sync {
 	 */
 	static _resolve(id, from) {
 		if (path.isAbsolute(id)) return require.resolve(id);
-		else return id.startsWith(".") ? require.resolve(path.join(from, id)) : require.resolve(id);
+		else return id.startsWith(".") ? require.resolve(path.join(from, id)) : require.resolve(id, { paths: [from] });
 		// else resolves either local paths (require only looks in the current dir if a ./ or ../ is present at the start otherwise it looks in registries like node_modules)
 	}
 }
