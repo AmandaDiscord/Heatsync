@@ -21,7 +21,8 @@ Almost all other primitive types in JS are essentially immutable and this logic 
 - Some files that interact with native modules even if not direclty may cause issues depending on how the native module was built. A case we've found is uWS.js where reloading a file specifying route handlers caused the process to crash. Be careful.
 - The default fs watch function is fs.watch, but is apparently inconsistent across multiple operating systems. There is an option to change it depending on your OS. Some may also recommend using the chokidar lib
 - With sync.remember, it tries its best to parse out the variable name to use it as a key in combination with the path of the src file. Sometimes it can fail in cases like minification or weird white spacing. If you try to use the same variable name in different scopes, it'd be valid code, but the remember can break this way as it's a name conflict internally. As a fallback, you can supply your own key as another param to sync.remember. In cases of minification or js bundling, if src maps are present, it can use the actual file name from the original file for the src path as part of the key, but if not then it uses the minified js path.
-- The same name restriction applies to sync.reloadClassMethods, but you cannot supply a key, so please avoid name conflicts.
+- The same name restriction of duplicate keys causing issues applies to sync.reloadClassMethods, but you can use your own key with a special static symbol you add to your class like `static [Sync.ClassKeySpecifier] = "YourKeyHere"`
+- For sync.reloadClassMethods, you should only pass classes that have sync.ReloadableClass as an ancestor and that are actually used/constructed directly. Classes marked as reloadable don't recursively mark all ancestors as reloadable, but if an ancestor isn't constructed independently, then marking them as reloadable isn't necessary as it's part of the prototype chain.
 
 # ESM Support
 For everywhere you would use a sync.require, you would instead use sync.import where sync.import is returning:
@@ -67,7 +68,7 @@ sync.events.on("error", console.error); // or node will kill your process if the
 const index = sync.remember(() => new Map()); // returns the Map so your "index" variable is the Map.
 
 // class instance methods getting updated (cannot do properties)
-class CanReload extends sync.reloadClassMethods(() => CanReload) {
+class CanReload extends sync.ReloadableClass {
 	constructor() {
 		// nothing in here or in the property initializers reload.
 	}
@@ -76,6 +77,8 @@ class CanReload extends sync.reloadClassMethods(() => CanReload) {
 		// everything in here can reload without having to construct a new instance of the class
 	}
 }
+
+sync.reloadClassMethods(CanReload);
 ```
 
 # Features

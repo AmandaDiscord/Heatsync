@@ -5,7 +5,8 @@ globalThis.passthrough = { sync };
 
 /** @type {typeof import("./scripts/test.cjs")} */
 const test = sync.require("./scripts/test.cjs");
+const instance = new test.Epic()
 
 setInterval(() => {
-	test.process("someone");
+	instance.say("someone");
 }, 5000);

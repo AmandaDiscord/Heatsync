@@ -21,7 +21,41 @@ type SyncOptions = {
 
 declare class Sync {
 	/**
-	 * An EventEmitter which emits absolute reloaded file paths.
+	 * A static symbol you can attach to classes you intend to mark as reloadable so that you can avoid automatic key assignment and name conflicts
+	 *
+	 * @example
+	 * // This example shows valid scoping of classes with the same name
+	 * // that would cause undefined behaviour if the file reloaded
+	 * // IF the static [Sync.ClassKeySpecifier] symbol wasn't there
+	 * // because HeatSync by default keys by constructor.name (aka class name)
+	 * const syncInstance = new Sync();
+	 *
+	 * const t1 = () => {
+	 * 	class ThisCanReload extends syncInstance.reloadClassMethods(() => ThisCanReload) {
+	 * 		static [Sync.ClassKeySpecifier] = "1";
+	 *
+	 * 		constructor() {}
+	 * 	}
+	 * 	return ThisCanReload;
+	 * }
+	 *
+	 * const t2 = () => {
+	 * 	class ThisCanReload extends syncInstance.reloadClassMethods(() => ThisCanReload) {
+	 * 		static [Sync.ClassKeySpecifier] = "2";
+	 *
+	 * 		constructor() {}
+	 * 	}
+	 * 	return ThisCanReload;
+	 * }
+	 *
+	 * const Reloadable1 = t1();
+	 * const Reloadable2 = t2();
+	 */
+	static ClassKeySpecifier: symbol;
+
+	/**
+	 * An EventEmitter which emits absolute reloaded file paths
+	 * or an any event with the second param being absolute reloaded file paths.
 	 */
 	events: EventEmitter<any>;
 	/**
@@ -31,6 +65,7 @@ declare class Sync {
 	ReloadableClass: Class;
 
 	constructor(options?: SyncOptions);
+
 	/**
 	 * Require a file and optionally watch it for updates from the filesystem to reload on change.
 	 * Modules imported MUST export an Object. A hard reference to the original Object only is held and subsequent updates add properties from the new Object
@@ -40,6 +75,26 @@ declare class Sync {
 	 * It expects a string literal and cannot be a Generic extending "" either.
 	 *
 	 * You will have to type the return value yourself if typings are important to you.
+	 *
+	 * @example
+	 * // require 1 file that can reload on file change
+	 * const syncInstance = new Sync();
+	 *
+	 * const utils = syncInstance.require("./utils.js");
+	 *
+	 * @example
+	 * // require multiple files
+	 * const [tests, config] = syncInstance.require([
+	 * 	"../tests/index.js",
+	 * 	"/home/mycooluser/shared_config.js"
+	 * ]);
+	 *
+	 * @example
+	 * // require a module installed as a dependency through node_modules
+	 * const backtracker = syncInstance.require("backtracker");
+	 * // This works because backtracker is a single file module (technically)
+	 * // HeatSync doesn't do deep resolution, so only the file that's resolved
+	 * // from the require gets reloaded. Not all of its child modules it imports.
 	 */
 	require<T = any>(id: string): T;
 	require<T = Array<any>>(id: Array<string>): T;
@@ -54,6 +109,26 @@ declare class Sync {
 	 * It expects a string literal and cannot be a Generic extending "" either.
 	 *
 	 * You will have to type the return value yourself if typings are important to you.
+	 *
+	 * @example
+	 * // import 1 file that can reload on file change
+	 * const syncInstance = new Sync();
+	 *
+	 * const utils = await syncInstance.import("./utils.js");
+	 *
+	 * @example
+	 * // import multiple files
+	 * const [tests, config] = await syncInstance.import([
+	 * 	"../tests/index.js",
+	 * 	"/home/mycooluser/shared_config.js"
+	 * ]);
+	 *
+	 * @example
+	 * // import a module installed as a dependency through node_modules
+	 * const backtracker = await syncInstance.import("backtracker");
+	 * // This works because backtracker is a single file module (technically)
+	 * // HeatSync doesn't do deep resolution, so only the file that's resolved
+	 * // from the import gets reloaded. Not all of its child modules it imports.
 	 */
 	import<T = any>(id: string, importAttributes?: ImportAttributes): Promise<T>;
 	import<T = Array<any>>(id: Array<string>, importAttributes?: ImportAttributes): Promise<T>;
@@ -62,20 +137,45 @@ declare class Sync {
 
 	/**
 	 * Adds a listener to an EventEmitter that will get removed if and when the file that is calling this method is reloaded.
+	 *
+	 * @example
+	 * const syncInstance = new Sync(); // you should actually not define a sync instance in a file that can reload.
+	 *
+	 * const myCoolLoggerThatCanChange = (...args) => // write to a file or something idk
+	 * syncInstance.addTemporaryListener(process, "uncaughtException", myCoolLoggerThatCanChange);
+	 * // reload this file and the listener is removed.
 	 */
 	addTemporaryListener<Target extends EventEmitter>(target: Target, event: Parameters<Target["on"]>[0], callback: (...args: Array<any>) => any, method?: "on" | "once"): Target;
 
 	/**
 	 * Sets a Timeout that will get cancelled if and when the file that is calling this method is reloaded.
+	 *
+	 * @example
+	 * const syncInstance = new Sync(); // you should actually not define a sync instance in a file that can reload.
+	 *
+	 * syncInstance.addTemporaryTimeout(() => {
+	 * 	// reload this file within 5 seconds or the process will exit!
+	 * 	process.exit();
+	 * }, 5000);
 	 */
 	addTemporaryTimeout(callback: () => void, ms?: number): NodeJS.Timeout;
-	addTemporaryTimeout<TArgs extends any[]>(callback: (...args: TArgs) => void, ms?: number, ...args: TArgs): NodeJS.Timeout;
+	addTemporaryTimeout<TArgs extends any[]>(callback: (...args: TArgs) => void, ms?: number, ...args: TArgs): NodeJS.Timeout | number;
 
 	/**
 	 * Sets an Interval that will get cancelled if and when the file that is calling this method is reloaded.
+	 *
+	 * @example
+	 * const syncInstance = new Sync(); // you should actually not define a sync instance in a file that can reload.
+	 *
+	 * let counter = 0
+	 * syncInstance.addTemporaryInterval(() => {
+	 * 	// counter resets at file reload, but will continue to increment until ever 5 seconds then.
+	 * 	// this is assuming this code stays at the next file reload
+	 * 	console.log(counter++);
+	 * }, 5000);
 	 */
-	addTemporaryInterval(callback: () => void, ms?: number): NodeJS.Timeout;
-	addTemporaryInterval<TArgs extends any[]>(callback: (...args: TArgs) => void, ms?: number, ...args: TArgs): NodeJS.Timeout;
+	addTemporaryInterval(callback: () => void, ms?: number): NodeJS.Timeout | number;
+	addTemporaryInterval<TArgs extends any[]>(callback: (...args: TArgs) => void, ms?: number, ...args: TArgs): NodeJS.Timeout | number;
 
 	/**
 	 * Forces a file to reload if you need it to reload when not using watchFS,
@@ -85,6 +185,13 @@ declare class Sync {
 	 * When heatsync is already watching the file and it updates and you need it to update faster than the fs polling rate, it will cancel the fs watcher,
 	 * trigger an update and then watch the file again. If the watcher has already triggered at least once, heatsync waits for the file to finish updating and then
 	 * triggers the update. There is no way to stop this currently and if you call resync after this point, multiple updates will be processed.
+	 *
+	 * @example
+	 * // get a sync instance from somewhere. That instance doesn't
+	 * // have to have imported the module you want to resync previously.
+	 * const syncInstance = new Sync(); // you should actually not define a sync instance in a file that can reload.
+	 *
+	 * syncInstance.resync("./utils.js");
 	 */
 	resync<T = any>(id: string): T;
 	resync<T = any>(id: string, _from: string): T;
@@ -101,6 +208,15 @@ declare class Sync {
 	 *
 	 * The limitations of this system are that the key, whether provided explicitly or inferred, must not change in order to restore properly.
 	 * A hard reference to the return value of the getter function first loaded is held. If the key changes, you may want to consider restarting your process.
+	 *
+	 * @example
+	 * // get a sync instance from somewhere. Do not define a sync instance in a file that can reload.
+	 * const index = syncInstance.remember(() => new Set());
+	 * for (let i = 0; i < 20; i++) {
+	 * 	index.add(i);
+	 * }
+	 * // now when the file is reloaded, the index variable is the same
+	 * // Set as before and has all of the items added to it previously
 	 */
 	remember<T>(getter: () => T, key?: string): T;
 
@@ -128,12 +244,14 @@ declare class Sync {
 	 * 	}
 	 * }
 	 * sync.reloadClassMethods(ThisCanReloadMethods);
+	 *
 	 * @example
 	 * class ThisCanAlsoReload extends sync.reloadClassMethods(() => ThisCanAlsoReload) { // works
 	 * 	constructor() { ... }
 	 * 	magic() { ... }
 	 * }
 	 * // doesn't need a follow-up function call
+	 *
 	 * @example
 	 * class ThisWontWork extends ThisCanReloadMethods {} // doesn't directly extend sync.ReloadableClass. Won't work
 	 * sync.reloadClassMethods(ThisWontWork); // Throws an error about not directly extending.

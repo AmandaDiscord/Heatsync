@@ -11,29 +11,17 @@ const shared = require("./shared.js");
 
 const wrongLoaderError = "The CJS version of heatsync does not support the import statement. Use the import statement to import heatsync if heatsync must use the import statement in the backend";
 
-/** @param {any} item */
-function objectLike(item) {
-	return typeof item === "object" && item !== null && !Array.isArray(item);
-}
-
-/** @typedef {(path: string, options: fs.WatchFileOptions & { bigint?: false }, cb: (...args: any[]) => any) => any} WatchFunction */
-/** @typedef {abstract new (...args: any) => any} Class */
-/**
- * @typedef SyncOptions
- * @property {boolean} [watchFS]
- * @property {boolean} [persistentWatchers]
- * @property {WatchFunction} [watchFunction]
- * @property {number} [watchDebounceMS]
- */
-
 class Sync {
-	/** @param {SyncOptions} options */
+	/** @type {symbol} */
+	static ClassKeySpecifier = shared.classKeySpecifierSymbol;
+
+	/** @param {shared.SyncOptions} options */
 	constructor(options) {
 		/**
-		 * @type {Required<SyncOptions>}
+		 * @type {Required<shared.SyncOptions>}
 		 * @private
 		 */
-		// @ts-expect-error
+		// @ts-expect-error We assign all of the options later. Dont worry :)
 		this._options = {};
 		if (options?.watchFS === undefined) this._options.watchFS = true;
 		else this._options.watchFS = options.watchFS ?? false;
@@ -67,7 +55,7 @@ class Sync {
 		 */
 		this._needsrefresh = new Set();
 		/**
-		 * @type {Map<string, Array<["timeout" | "interval", NodeJS.Timeout]>>}
+		 * @type {Map<string, Array<["timeout" | "interval", NodeJS.Timeout | number]>>}
 		 * @private
 		 */
 		this._timers = new Map();
@@ -93,12 +81,14 @@ class Sync {
 		this._pending = new Map();
 
 		const sync = this;
-		/** @type {Class} */
+		/** @type {shared.Class} */
 		this.ReloadableClass = class ReloadableClass {
 			constructor() {
 				const first = getStack().first();
 				assert(first);
-				const key = `${first.srcAbsolute}:${this.constructor.name}`;
+				// @ts-expect-error Accessing a symbol keyed static property
+				const identifier = this.constructor[Sync.ClassKeySpecifier] ?? this.constructor.name
+				const key = `${first.srcAbsolute}:${identifier}`;
 				if (!sync._reloadableInstances.has(key)) sync._reloadableInstances.set(key, new Set());
 				const ref = new WeakRef(this);
 				const set = sync._reloadableInstances.get(key);
@@ -130,14 +120,14 @@ class Sync {
 	require(id, _from) {
 		/** @type {string} */
 		let from;
-		// @ts-expect-error
+		// @ts-expect-error Cannot inline non null assertion
 		from = _from ?? getStack().first().dir;
-		// @ts-expect-error
+		// @ts-expect-error Cannot pass generic T into sub calls of require so it thinks any isnt assignable to T
 		if (Array.isArray(id)) return id.map(item => this.require(item, from));
 		const directory = Sync._resolve(id, from);
 		if (directory === __filename) throw new Error(shared.selfReloadError);
 		const value = require(directory);
-		if (!objectLike(value)) throw new Error(`${directory} ${shared.nonObjectErrorPart}`);
+		if (!shared.objectLike(value)) throw new Error(`${directory} ${shared.nonObjectErrorPart}`);
 
 		const oldObject = this._references.get(directory);
 		if (oldObject) {
@@ -181,7 +171,7 @@ class Sync {
 		assert(first);
 		const absolute = path.normalize(first.absolute);
 		if (!this._listeners.get(absolute)) this._listeners.set(absolute, []);
-		// @ts-expect-error
+		// @ts-expect-error Cannot inline non null assertion
 		this._listeners.get(absolute).push([target, event, callback]);
 		setImmediate(() => target[method](event, callback));
 		return target;
@@ -192,17 +182,15 @@ class Sync {
 	 * @param {(...args: TArgs) => void} callback
 	 * @param {number} [ms]
 	 * @param {...TArgs} args
-	 * @returns {NodeJS.Timeout}
+	 * @returns {NodeJS.Timeout | number}
 	 */
 	addTemporaryTimeout(callback, ms, ...args) {
 		const first = getStack().first();
 		assert(first);
 		const absolute = path.normalize(first.absolute);
 		if (!this._timers.get(absolute)) this._timers.set(absolute, []);
-		/** @type {NodeJS.Timeout} */
-		// @ts-expect-error
 		const timer = setTimeout(callback, ms, ...args);
-		// @ts-expect-error
+		// @ts-expect-error Cannot inline non null assertion
 		this._timers.get(absolute).push(["timeout", timer]);
 		return timer;
 	}
@@ -212,17 +200,15 @@ class Sync {
 	 * @param {(...args: TArgs) => void} callback
 	 * @param {number} [ms]
 	 * @param {...TArgs} args
-	 * @returns {NodeJS.Timeout}
+	 * @returns {NodeJS.Timeout | number}
 	 */
 	addTemporaryInterval(callback, ms, ...args) {
 		const first = getStack().first();
 		assert(first);
 		const absolute = path.normalize(first.absolute);
 		if (!this._timers.get(absolute)) this._timers.set(absolute, []);
-		/** @type {NodeJS.Timeout} */
-		// @ts-expect-error
 		const timer = setInterval(callback, ms, ...args);
-		// @ts-expect-error
+		// @ts-expect-error Cannot inline non null assertion
 		this._timers.get(absolute).push(["interval", timer]);
 		return timer;
 	}
@@ -236,9 +222,9 @@ class Sync {
 	resync(id, _from) {
 		/** @type {string} */
 		let from;
-		// @ts-expect-error
+		// @ts-expect-error Cannot inline non null assertion
 		from = _from ?? getStack().first().dir;
-		// @ts-expect-error
+		// @ts-expect-error Cannot pass generic T into sub calls of resync so it thinks any isnt assignable to T
 		if (Array.isArray(id)) return id.map(item => this.resync(item, from));
 		const directory = Sync._resolve(id, from);
 		if (directory === __filename) throw new Error(shared.selfReloadError);
@@ -298,18 +284,21 @@ class Sync {
 	}
 
 	/**
-	 * @param {Class | (() => Class | any)} loadedClass
+	 * @param {shared.Class | (() => shared.Class | any)} loadedClass
 	 */
 	reloadClassMethods(loadedClass) {
 		const first = getStack().first();
 		assert(first);
 		const abs = first.srcAbsolute;
 
-		/** @param {Class | (() => Class)} loadedClass */
+		/** @param {shared.Class} loadedClass */
 		const loadClass = (loadedClass) => {
-			const key = `${abs}:${loadedClass.name}`;
+			// @ts-expect-error Accessing a symbol keyed static property
+			const identifier = loadedClass[Sync.ClassKeySpecifier] ?? loadedClass.name
+			const key = `${abs}:${identifier}`;
 
-			if (Object.getPrototypeOf(loadedClass) !== this.ReloadableClass) throw new Error(`You tried to reload class ${key}, but it needs to \`extend sync.ReloadableClass\` (directly) for that to work.`);
+			if (typeof loadedClass !== "function" || !("prototype" in loadedClass)) throw new Error(`You tried to pass ${typeof loadedClass} into sync.reloadClassMethods, but it isn't a class`)
+			if (loadedClass === this.ReloadableClass || !(loadedClass.prototype instanceof this.ReloadableClass)) throw new Error(`You tried to reload class ${key}, but it needs to \`extend sync.ReloadableClass\` for that to work.`);
 
 			for (const ref of this._reloadableInstances.get(key) ?? []) {
 				const object = ref.deref();
@@ -318,8 +307,9 @@ class Sync {
 			}
 		}
 
+		// @ts-expect-error TS doesn't type narrow based on the presence of prototype in the Class type
 		if ("prototype" in loadedClass) loadClass(loadedClass); // passed a class - load it
-		// @ts-expect-error
+		// @ts-expect-error TS thinks loadedClass is never which isn't true. ("prototype" in (() => void 0)) === false
 		else setImmediate(() => loadClass(loadedClass())); // passed a function - need to wait before we call it so that the reference is resolvable
 
 		return this.ReloadableClass;
@@ -384,6 +374,7 @@ class Sync {
 			for (const [target, event, func] of listeners) {
 				target.removeListener(event, func);
 			}
+			this._listeners.delete(directory);
 		}
 
 		const timers = this._timers.get(directory);
@@ -392,10 +383,11 @@ class Sync {
 				if (type === "timeout") clearTimeout(timer);
 				else clearInterval(timer);
 			}
+			this._timers.delete(directory);
 		}
 
 		try {
-			this.require(directory);
+			return this.require(directory);
 		} catch (e) {
 			// @ts-expect-error Cannot type annotate as Error. Has to be any or unknown. But cannot cleanly type annotate
 			e.file = directory;
